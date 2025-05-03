@@ -1,0 +1,1035 @@
+// ChoresView.swift
+// MyChores
+//
+// Created on 2025-05-02.
+//
+
+import SwiftUI
+import Combine
+import FirebaseFirestore
+import Foundation
+
+// Forward declarations to help the compiler
+extension Chore {
+    enum RecurrenceType: String, Codable, CaseIterable {
+        case daily, weekly, monthly
+    }
+}
+
+extension ChoreViewModel {
+    enum FilterMode: String, CaseIterable, Identifiable {
+        case all = "All"
+        case mine = "Mine"
+        case pending = "Pending"
+        case overdue = "Overdue"
+        case completed = "Completed"
+        
+        var id: String { rawValue }
+    }
+}
+
+extension User {
+    static let sample = User(
+        name: "Test User",
+        email: "test@example.com",
+        createdAt: Date()
+    )
+}
+
+// Extensions for Theme to make the code simpler and help with type checking
+extension Theme.Colors {
+    static var systemBackground: Color { Color(UIColor.systemBackground) }
+    static var systemFill: Color { Color(UIColor.systemFill) }
+    static var label: Color { Color(UIColor.label) }
+    static var secondaryLabel: Color { Color(UIColor.secondaryLabel) }
+}
+
+extension Theme.Typography {
+    static var bodyFontSystem: Font { .body }
+    static var captionFontSystem: Font { .caption }
+    static var titleFontSystem: Font { .title2 }
+    static var subheadingFontSystem: Font { .subheadline }
+}
+
+extension Theme.Dimensions {
+    static var cornerRadiusMedium: CGFloat { 12 }
+}
+
+/// Main view for managing household chores
+struct ChoresView: View {
+    @ObservedObject private var viewModel: ChoreViewModel
+    @State private var showingAddChore = false
+    @State private var showingChoreDetail: Chore?
+    @State private var isRefreshing = false
+    
+    init(householdId: String) {
+        self.viewModel = ChoreViewModel(householdId: householdId)
+    }
+    
+    var body: some View {
+        ZStack {
+            Theme.Colors.background.ignoresSafeArea()
+            
+            VStack(spacing: 0) {
+                // Filter controls
+                FilterControlsView(viewModel: viewModel)
+                
+                // Chore content
+                if viewModel.isLoading && viewModel.chores.isEmpty {
+                    loadingView
+                } else if viewModel.filteredChores.isEmpty {
+                    EmptyStateView(filterMode: viewModel.filterMode, onAddTapped: {
+                        showingAddChore = true
+                    })
+                } else {
+                    choreListView
+                }
+            }
+            .navigationTitle("Chores")
+            .toolbar {
+                ToolbarItem(placement: .primaryAction) {
+                    Button {
+                        showingAddChore = true
+                    } label: {
+                        Image(systemName: "plus")
+                    }
+                }
+            }
+            .sheet(isPresented: $showingAddChore) {
+                AddChoreView(householdId: viewModel.householdId)
+            }
+            .sheet(item: $showingChoreDetail) { chore in
+                ChoreDetailView(
+                    chore: chore,
+                    onComplete: {
+                        viewModel.completeChore(choreId: chore.id ?? "")
+                    },
+                    onDelete: {
+                        viewModel.deleteChore(choreId: chore.id ?? "")
+                    }
+                )
+            }
+            .overlay(
+                Group {
+                    if let pointsMessage = viewModel.pointsEarnedMessage {
+                        PointsEarnedToastView(message: pointsMessage) {
+                            viewModel.pointsEarnedMessage = nil
+                        }
+                    }
+                }
+            )
+            .overlay(
+                Group {
+                    if let badgeMessage = viewModel.badgeEarnedMessage {
+                        BadgeEarnedToastView(message: badgeMessage) {
+                            viewModel.badgeEarnedMessage = nil
+                        }
+                    }
+                }
+            )
+            .refreshable {
+                isRefreshing = true
+                viewModel.loadChores()
+                isRefreshing = false
+            }
+            .alert(
+                "Error",
+                isPresented: Binding<Bool>(
+                    get: { viewModel.errorMessage != nil },
+                    set: { if !$0 { viewModel.errorMessage = nil } }
+                ),
+                actions: { Button("OK", role: .cancel) {} },
+                message: { Text(viewModel.errorMessage ?? "") }
+            )
+        }
+    }
+    
+    // MARK: - UI Components
+    
+    private var loadingView: some View {
+        ProgressView()
+            .progressViewStyle(CircularProgressViewStyle())
+            .scaleEffect(1.5)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+    
+    private var choreListView: some View {
+        List {
+            ForEach(viewModel.filteredChores) { chore in
+                ChoreRowView(chore: chore)
+                    .contentShape(Rectangle())
+                    .onTapGesture {
+                        showingChoreDetail = chore
+                    }
+                    .swipeActions(edge: .trailing) {
+                        if !chore.isCompleted {
+                            Button {
+                                viewModel.completeChore(choreId: chore.id ?? "")
+                            } label: {
+                                Label("Complete", systemImage: "checkmark.circle")
+                            }
+                            .tint(Theme.Colors.success)
+                        }
+                        
+                        Button(role: .destructive) {
+                            viewModel.deleteChore(choreId: chore.id ?? "")
+                        } label: {
+                            Label("Delete", systemImage: "trash")
+                        }
+                    }
+            }
+        }
+        .listStyle(InsetGroupedListStyle())
+    }
+}
+
+/// Row view for a single chore in the list
+struct ChoreRowView: View {
+    let chore: Chore
+    
+    var body: some View {
+        HStack(spacing: 16) {
+            // Status indicator
+            ZStack {
+                Circle()
+                    .fill(statusColor.opacity(0.2))
+                    .frame(width: 40, height: 40)
+                
+                if chore.isCompleted {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 24))
+                        .foregroundColor(Theme.Colors.success)
+                } else if chore.isOverdue {
+                    Image(systemName: "exclamationmark.circle.fill")
+                        .font(.system(size: 24))
+                        .foregroundColor(Theme.Colors.error)
+                } else {
+                    Image(systemName: "circle")
+                        .font(.system(size: 24))
+                        .foregroundColor(statusColor)
+                }
+            }
+            
+            // Chore details
+            VStack(alignment: .leading, spacing: 4) {
+                Text(chore.title)
+                    .font(Theme.Typography.bodyFontSystem.bold())
+                    .foregroundColor(chore.isCompleted ? Theme.Colors.textSecondary : Theme.Colors.text)
+                    .strikethrough(chore.isCompleted)
+                
+                HStack(spacing: 12) {
+                    // Due date
+                    if let dueDate = chore.dueDate {
+                        HStack(spacing: 4) {
+                            Image(systemName: "calendar")
+                                .font(.system(size: 12))
+                            
+                            Text(formatDate(dueDate))
+                                .font(Theme.Typography.captionFontSystem)
+                        }
+                        .foregroundColor(dueDateColor)
+                    }
+                    
+                    // Points
+                    HStack(spacing: 4) {
+                        Image(systemName: "star.fill")
+                            .font(.system(size: 12))
+                        
+                        Text("\(chore.pointValue) pts")
+                            .font(Theme.Typography.captionFontSystem)
+                    }
+                    .foregroundColor(Theme.Colors.accent)
+                    
+                    // Recurring indicator
+                    if chore.isRecurring {
+                        HStack(spacing: 4) {
+                            Image(systemName: "arrow.clockwise")
+                                .font(.system(size: 12))
+                            
+                            Text(recurrenceText)
+                                .font(Theme.Typography.captionFontSystem)
+                        }
+                        .foregroundColor(Theme.Colors.textSecondary)
+                    }
+                }
+            }
+            
+            Spacer()
+            
+            // Assigned user initials
+            if let assignedToUserId = chore.assignedToUserId {
+                Text(getUserInitials(assignedToUserId))
+                    .font(Theme.Typography.captionFontSystem.bold())
+                    .foregroundColor(.white)
+                    .frame(width: 30, height: 30)
+                    .background(Theme.Colors.secondary)
+                    .clipShape(Circle())
+            }
+        }
+        .padding(.vertical, 8)
+    }
+    
+    // MARK: - Helper Properties
+    
+    private var statusColor: Color {
+        if chore.isCompleted {
+            return Theme.Colors.success
+        } else if chore.isOverdue {
+            return Theme.Colors.error
+        } else {
+            return Theme.Colors.primary
+        }
+    }
+    
+    private var dueDateColor: Color {
+        if chore.isOverdue {
+            return Theme.Colors.error
+        } else {
+            return Theme.Colors.textSecondary
+        }
+    }
+    
+    private var recurrenceText: String {
+        guard let type = chore.recurrenceType, let interval = chore.recurrenceInterval else {
+            return "Recurring"
+        }
+        
+        switch type {
+        case .daily:
+            return interval == 1 ? "Daily" : "Every \(interval) days"
+        case .weekly:
+            return interval == 1 ? "Weekly" : "Every \(interval) weeks"
+        case .monthly:
+            return interval == 1 ? "Monthly" : "Every \(interval) months"
+        }
+    }
+    
+    // MARK: - Helper Methods
+    
+    private func formatDate(_ date: Date) -> String {
+        let now = Date()
+        let calendar = Calendar.current
+        
+        // If it's today
+        if calendar.isDateInToday(date) {
+            let formatter = DateFormatter()
+            formatter.dateFormat = "h:mm a"
+            return "Today, \(formatter.string(from: date))"
+        }
+        
+        // If it's tomorrow
+        if calendar.isDateInTomorrow(date) {
+            let formatter = DateFormatter()
+            formatter.dateFormat = "h:mm a"
+            return "Tomorrow, \(formatter.string(from: date))"
+        }
+        
+        // If it's within the week
+        if let diff = calendar.dateComponents([.day], from: now, to: date).day, diff < 7, diff > 0 {
+            let formatter = DateFormatter()
+            formatter.dateFormat = "EEEE"
+            return formatter.string(from: date)
+        }
+        
+        // Otherwise, use standard date format
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .short
+        return formatter.string(from: date)
+    }
+    
+    private func getUserInitials(_ userId: String) -> String {
+        // This is a placeholder - in a real implementation, we would look up the user's name
+        // For now, just return a placeholder based on the user ID
+        let firstChar = userId.first?.uppercased() ?? "U"
+        return firstChar
+    }
+}
+
+/// Displays a toast message when points are earned
+struct PointsEarnedToastView: View {
+    let message: String
+    let onDismiss: () -> Void
+    
+    var body: some View {
+        VStack {
+            Spacer()
+            
+            Text(message)
+                .font(Theme.Typography.bodyFontSystem.bold())
+                .padding()
+                .background(Theme.Colors.success)
+                .foregroundColor(.white)
+                .cornerRadius(Theme.Dimensions.cornerRadiusMedium)
+                .padding(.bottom, 16)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+        }
+        .zIndex(100)
+        .animation(.spring(), value: message)
+        .onAppear {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                onDismiss()
+            }
+        }
+    }
+}
+
+/// Displays a toast message when a badge is earned
+struct BadgeEarnedToastView: View {
+    let message: String
+    let onDismiss: () -> Void
+    
+    var body: some View {
+        VStack {
+            Text(message)
+                .font(Theme.Typography.bodyFontSystem.bold())
+                .padding()
+                .background(Theme.Colors.accent)
+                .foregroundColor(.white)
+                .cornerRadius(Theme.Dimensions.cornerRadiusMedium)
+                .padding(.top, 16)
+                .transition(.move(edge: .top).combined(with: .opacity))
+            
+            Spacer()
+        }
+        .zIndex(100)
+        .animation(.spring(), value: message)
+        .onAppear {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                onDismiss()
+            }
+        }
+    }
+}
+
+/// View for adding a new chore
+struct AddChoreView: View {
+    @Environment(\.dismiss) private var dismiss
+    @StateObject private var viewModel: ChoreViewModel
+    
+    // Chore properties
+    @State private var title = ""
+    @State private var description = ""
+    @State private var assignedToUserId: String?
+    @State private var dueDate = Date().addingTimeInterval(24 * 60 * 60) // Tomorrow by default
+    @State private var hasDueDate = true
+    @State private var pointValue = 1
+    @State private var isRecurring = false
+    @State private var recurrenceType: Chore.RecurrenceType = .weekly
+    @State private var recurrenceInterval = 1
+    @State private var recurrenceDaysOfWeek: [Int] = []
+    @State private var recurrenceDayOfMonth: Int?
+    @State private var recurrenceEndDate: Date?
+    @State private var hasRecurrenceEndDate = false
+    
+    // UI state
+    @State private var availableUsers: [User] = []
+    @State private var isLoadingUsers = false
+    
+    init(householdId: String) {
+        self._viewModel = StateObject(wrappedValue: ChoreViewModel(householdId: householdId))
+    }
+    
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                Theme.Colors.background.ignoresSafeArea()
+                
+                mainFormContent
+            }
+            .navigationTitle("Add Chore")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        dismiss()
+                    }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Add") {
+                        addChore()
+                    }
+                    .disabled(!isFormValid)
+                }
+            }
+            .alert(
+                "Error",
+                isPresented: errorAlertBinding(),
+                actions: { Button("OK", role: .cancel) {} },
+                message: { Text(viewModel.errorMessage ?? "") }
+            )
+        }
+    }
+    
+    // MARK: - Content Sections
+    
+    private var mainFormContent: some View {
+        Form {
+            basicDetailsSection
+            dueDateSection
+            assignmentSection
+            pointsSection
+            recurrenceSection
+        }
+        .onAppear {
+            loadHouseholdMembers()
+        }
+    }
+    
+    private var basicDetailsSection: some View {
+        Section(header: Text("Basic Details")) {
+            TextField("Title", text: $title)
+            
+            TextField("Description (optional)", text: $description)
+                .frame(height: 60)
+        }
+    }
+    
+    private var dueDateSection: some View {
+        Section(header: Text("Due Date")) {
+            Toggle("Has Due Date", isOn: $hasDueDate)
+            
+            if hasDueDate {
+                DatePicker("Due Date", selection: $dueDate, displayedComponents: [.date, .hourAndMinute])
+            }
+        }
+    }
+    
+    private var assignmentSection: some View {
+        Section(header: Text("Assignment")) {
+            Picker("Assign To", selection: $assignedToUserId) {
+                Text("Unassigned").tag(nil as String?)
+                
+                ForEach(availableUsers) { user in
+                    Text(user.name).tag(user.id)
+                }
+            }
+            .disabled(isLoadingUsers)
+            
+            if isLoadingUsers {
+                HStack {
+                    Spacer()
+                    ProgressView()
+                    Spacer()
+                }
+            }
+        }
+    }
+    
+    private var pointsSection: some View {
+        Section(header: Text("Points")) {
+            Stepper("Points: \(pointValue)", value: $pointValue, in: 1...10)
+        }
+    }
+    
+    private var recurrenceSection: some View {
+        Section(header: Text("Recurrence")) {
+            Toggle("Recurring Chore", isOn: $isRecurring)
+            
+            if isRecurring {
+                recurrenceTypePickerView
+                recurrenceIntervalView
+                
+                if recurrenceType == .weekly {
+                    weekdaySelectionView
+                } else if recurrenceType == .monthly {
+                    monthlyRecurrenceView
+                }
+                
+                // End date
+                endDateToggleView
+            }
+        }
+    }
+    
+    private var recurrenceTypePickerView: some View {
+        Picker("Repeat", selection: $recurrenceType) {
+            Text("Daily").tag(Chore.RecurrenceType.daily)
+            Text("Weekly").tag(Chore.RecurrenceType.weekly)
+            Text("Monthly").tag(Chore.RecurrenceType.monthly)
+        }
+        .pickerStyle(SegmentedPickerStyle())
+    }
+    
+    @ViewBuilder
+    private var recurrenceIntervalView: some View {
+        if recurrenceType == .daily {
+            Stepper("Every \(recurrenceInterval) day\(recurrenceInterval > 1 ? "s" : "")", 
+                   value: $recurrenceInterval, in: 1...30)
+        } else if recurrenceType == .weekly {
+            Stepper("Every \(recurrenceInterval) week\(recurrenceInterval > 1 ? "s" : "")", 
+                   value: $recurrenceInterval, in: 1...12)
+        } else if recurrenceType == .monthly {
+            Stepper("Every \(recurrenceInterval) month\(recurrenceInterval > 1 ? "s" : "")", 
+                   value: $recurrenceInterval, in: 1...12)
+        }
+    }
+    
+    private var weekdaySelectionView: some View {
+        // Day of week selection
+        HStack {
+            Text("Days of Week")
+            Spacer()
+            NavigationLink("Select Days") {
+                Form {
+                    Section(header: Text("Select Days of Week")) {
+                        ForEach(0..<7) { dayIndex in
+                            let dayName = getDayName(dayIndex)
+                            Toggle(dayName, isOn: weekdayBinding(for: dayIndex))
+                        }
+                    }
+                }
+                .navigationTitle("Select Days")
+            }
+        }
+    }
+    
+    private var monthlyRecurrenceView: some View {
+        // Day of month
+        Picker("Day of Month", selection: $recurrenceDayOfMonth) {
+            Text("Same day as first occurrence").tag(nil as Int?)
+            ForEach(1...28, id: \.self) { day in
+                Text("\(day)").tag(day as Int?)
+            }
+        }
+    }
+    
+    private var endDateToggleView: some View {
+        Group {
+            Toggle("Has End Date", isOn: $hasRecurrenceEndDate)
+            
+            if hasRecurrenceEndDate {
+                DatePicker("End Date", selection: recurrenceEndDateBinding(), displayedComponents: [.date])
+            }
+        }
+    }
+    
+    // MARK: - Helper Properties
+    
+    private var isFormValid: Bool {
+        return !title.isEmpty
+    }
+    
+    // MARK: - Helper Methods
+    
+    private func addChore() {
+        // Prepare all parameters
+        let finalDueDate = hasDueDate ? dueDate : nil
+        let finalRecurrenceType = isRecurring ? recurrenceType : nil
+        let finalRecurrenceInterval = isRecurring ? recurrenceInterval : nil
+        let finalRecurrenceEndDate = isRecurring && hasRecurrenceEndDate ? recurrenceEndDate : nil
+        let finalRecurrenceDaysOfWeek = isRecurring && recurrenceType == .weekly ? recurrenceDaysOfWeek : nil
+        let finalRecurrenceDayOfMonth = isRecurring && recurrenceType == .monthly ? recurrenceDayOfMonth : nil
+        
+        // Create the chore with the prepared parameters
+        viewModel.createChore(
+            title: title,
+            description: description,
+            assignedToUserId: assignedToUserId,
+            dueDate: finalDueDate,
+            pointValue: pointValue,
+            isRecurring: isRecurring,
+            recurrenceType: finalRecurrenceType,
+            recurrenceInterval: finalRecurrenceInterval,
+            recurrenceDaysOfWeek: finalRecurrenceDaysOfWeek,
+            recurrenceDayOfMonth: finalRecurrenceDayOfMonth,
+            recurrenceEndDate: finalRecurrenceEndDate
+        )
+        
+        // Dismiss the sheet once the chore is created
+        dismiss()
+    }
+    
+    private func loadHouseholdMembers() {
+        // In a real implementation, this would fetch actual users from the household
+        // For now, just use some sample data
+        isLoadingUsers = true
+        
+        // Simulate network fetch
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            availableUsers = [
+                User.sample
+                // Add more sample users as needed
+            ]
+            isLoadingUsers = false
+        }
+    }
+    
+    private func getDayName(_ dayIndex: Int) -> String {
+        // Use a fixed reference date that we know is a Sunday
+        // January 7, 2024 was a Sunday
+        let referenceDate = DateComponents(calendar: Calendar.current, year: 2024, month: 1, day: 7).date!
+        
+        // Add dayIndex days to get the desired weekday
+        let dayDate = Calendar.current.date(byAdding: .day, value: dayIndex, to: referenceDate)!
+        
+        // Format the date to get the weekday name
+        let formatter = DateFormatter()
+        formatter.dateFormat = "EEEE"
+        return formatter.string(from: dayDate)
+    }
+    
+    // MARK: - Binding Helpers
+    
+    private func errorAlertBinding() -> Binding<Bool> {
+        return Binding<Bool>(
+            get: { 
+                self.viewModel.errorMessage != nil 
+            },
+            set: { isPresented in
+                if !isPresented {
+                    self.viewModel.errorMessage = nil
+                }
+            }
+        )
+    }
+    
+    private func weekdayBinding(for dayIndex: Int) -> Binding<Bool> {
+        return Binding<Bool>(
+            get: { 
+                self.recurrenceDaysOfWeek.contains(dayIndex)
+            },
+            set: { isSelected in
+                if isSelected {
+                    self.recurrenceDaysOfWeek.append(dayIndex)
+                } else {
+                    self.recurrenceDaysOfWeek.removeAll { $0 == dayIndex }
+                }
+            }
+        )
+    }
+    
+    private func recurrenceEndDateBinding() -> Binding<Date> {
+        return Binding<Date>(
+            get: { 
+                self.recurrenceEndDate ?? Date().addingTimeInterval(30 * 24 * 60 * 60)
+            },
+            set: { 
+                self.recurrenceEndDate = $0
+            }
+        )
+    }
+}
+
+/// Detail view for a chore
+struct ChoreDetailView: View {
+    @Environment(\.dismiss) private var dismiss
+    
+    let chore: Chore
+    let onComplete: () -> Void
+    let onDelete: () -> Void
+    
+    @State private var showingDeleteConfirmation = false
+    
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                Theme.Colors.background.ignoresSafeArea()
+                
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 20) {
+                        // Status banner
+                        statusBanner
+                        
+                        // Content sections
+                        basicInfoSection
+                        infoCardsSection
+                        actionButtonsSection
+                    }
+                }
+            }
+            .navigationTitle("Chore Details")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                }
+            }
+            .alert("Delete Chore", isPresented: $showingDeleteConfirmation) {
+                Button("Cancel", role: .cancel) {}
+                Button("Delete", role: .destructive) {
+                    onDelete()
+                    dismiss()
+                }
+            } message: {
+                Text("Are you sure you want to delete this chore? This action cannot be undone.")
+            }
+        }
+    }
+    
+    // MARK: - UI Sections
+    
+    private var basicInfoSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(chore.title)
+                .font(Theme.Typography.titleFontSystem)
+                .foregroundColor(Theme.Colors.text)
+            
+            if !chore.description.isEmpty {
+                Text(chore.description)
+                    .font(Theme.Typography.bodyFontSystem)
+                    .foregroundColor(Theme.Colors.textSecondary)
+                    .padding(.top, 4)
+            }
+        }
+        .padding(.horizontal, 16)
+    }
+    
+    private var infoCardsSection: some View {
+        VStack(spacing: 16) {
+            // Due date
+            if let dueDate = chore.dueDate {
+                infoCard(
+                    title: "Due Date",
+                    value: formatDate(dueDate),
+                    icon: "calendar",
+                    color: chore.isOverdue ? Theme.Colors.error : Theme.Colors.primary
+                )
+            }
+            
+            // Assigned to
+            if let assignedToUserId = chore.assignedToUserId {
+                infoCard(
+                    title: "Assigned To",
+                    value: getAssignedUserName(assignedToUserId),
+                    icon: "person.fill",
+                    color: Theme.Colors.secondary
+                )
+            }
+            
+            // Points
+            infoCard(
+                title: "Points",
+                value: "\(chore.pointValue) point\(chore.pointValue > 1 ? "s" : "")",
+                icon: "star.fill",
+                color: Theme.Colors.accent
+            )
+            
+            // Recurrence
+            if chore.isRecurring {
+                infoCard(
+                    title: "Recurrence",
+                    value: getRecurrenceText(),
+                    icon: "arrow.clockwise",
+                    color: Theme.Colors.secondary
+                )
+            }
+            
+            // Completion status
+            if chore.isCompleted, let completedAt = chore.completedAt {
+                infoCard(
+                    title: "Completed",
+                    value: formatDate(completedAt),
+                    icon: "checkmark.circle.fill",
+                    color: Theme.Colors.success
+                )
+            }
+        }
+        .padding(.horizontal, 16)
+    }
+    
+    private var actionButtonsSection: some View {
+        VStack(spacing: 12) {
+            // Complete button (only if not already completed)
+            if !chore.isCompleted {
+                completeButton
+            }
+            
+            // Delete button
+            deleteButton
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 24)
+        .padding(.bottom, 16)
+    }
+    
+    // MARK: - UI Components
+    
+    private var statusBanner: some View {
+        HStack {
+            Image(systemName: statusIcon)
+                .font(.system(size: 24))
+            
+            Text(statusText)
+                .font(Theme.Typography.subheadingFontSystem)
+            
+            Spacer()
+        }
+        .padding()
+        .foregroundColor(.white)
+        .background(statusColor)
+    }
+    
+    private var completeButton: some View {
+        Button {
+            onComplete()
+            dismiss()
+        } label: {
+            HStack {
+                Image(systemName: "checkmark.circle.fill")
+                Text("Mark as Completed")
+            }
+            .font(Theme.Typography.bodyFontSystem.bold())
+            .foregroundColor(.white)
+            .frame(maxWidth: .infinity)
+            .padding()
+            .background(Theme.Colors.success)
+            .cornerRadius(Theme.Dimensions.cornerRadiusMedium)
+        }
+    }
+    
+    private var deleteButton: some View {
+        Button {
+            showingDeleteConfirmation = true
+        } label: {
+            HStack {
+                Image(systemName: "trash.fill")
+                Text("Delete Chore")
+            }
+            .font(Theme.Typography.bodyFontSystem.bold())
+            .foregroundColor(Theme.Colors.error)
+            .frame(maxWidth: .infinity)
+            .padding()
+            .background(Theme.Colors.error.opacity(0.1))
+            .cornerRadius(Theme.Dimensions.cornerRadiusMedium)
+        }
+    }
+    
+    private func infoCard(title: String, value: String, icon: String, color: Color) -> some View {
+        HStack {
+            Image(systemName: icon)
+                .font(.system(size: 24))
+                .foregroundColor(color)
+                .frame(width: 32)
+            
+            VStack(alignment: .leading, spacing: 4) {
+                Text(title)
+                    .font(Theme.Typography.captionFontSystem)
+                    .foregroundColor(Theme.Colors.textSecondary)
+                
+                Text(value)
+                    .font(Theme.Typography.bodyFontSystem)
+                    .foregroundColor(Theme.Colors.text)
+            }
+            
+            Spacer()
+        }
+        .padding()
+        .background(Theme.Colors.cardBackground)
+        .cornerRadius(Theme.Dimensions.cornerRadiusMedium)
+        .shadow(color: Color.black.opacity(0.05), radius: 2, x: 0, y: 1)
+    }
+    
+    // MARK: - Helper Properties
+    
+    private var statusIcon: String {
+        if chore.isCompleted {
+            return "checkmark.circle.fill"
+        } else if chore.isOverdue {
+            return "exclamationmark.circle.fill"
+        } else {
+            return "circle"
+        }
+    }
+    
+    private var statusText: String {
+        if chore.isCompleted {
+            return "Completed"
+        } else if chore.isOverdue {
+            return "Overdue"
+        } else {
+            return "Pending"
+        }
+    }
+    
+    private var statusColor: Color {
+        if chore.isCompleted {
+            return Theme.Colors.success
+        } else if chore.isOverdue {
+            return Theme.Colors.error
+        } else {
+            return Theme.Colors.primary
+        }
+    }
+    
+    // MARK: - Helper Methods
+    
+    private func formatDate(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .short
+        return formatter.string(from: date)
+    }
+    
+    private func getAssignedUserName(_ userId: String) -> String {
+        // In a real app, this would look up the user's name from a service
+        // For now, just return a placeholder based on the user ID
+        return "User"
+    }
+    
+    private func getRecurrenceText() -> String {
+        guard let type = chore.recurrenceType, let interval = chore.recurrenceInterval else {
+            return "Recurring"
+        }
+        
+        var baseText: String
+        
+        switch type {
+        case .daily:
+            baseText = interval == 1 ? "Daily" : "Every \(interval) days"
+        case .weekly:
+            baseText = interval == 1 ? "Weekly" : "Every \(interval) weeks"
+            
+            if let days = chore.recurrenceDaysOfWeek, !days.isEmpty {
+                let dayNames = days.map { getDayName($0) }.joined(separator: ", ")
+                baseText += " on \(dayNames)"
+            }
+        case .monthly:
+            baseText = interval == 1 ? "Monthly" : "Every \(interval) months"
+            
+            if let dayOfMonth = chore.recurrenceDayOfMonth {
+                baseText += " on day \(dayOfMonth)"
+            }
+        }
+        
+        if let endDate = chore.recurrenceEndDate {
+            let formatter = DateFormatter()
+            formatter.dateStyle = .medium
+            baseText += " until \(formatter.string(from: endDate))"
+        }
+        
+        return baseText
+    }
+    
+    private func getDayName(_ dayIndex: Int) -> String {
+        let days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]
+        return days[dayIndex % 7]
+    }
+}
+
+// MARK: - Extensions
+
+extension Date {
+    func next(_ weekday: Int, considerToday: Bool = false) -> Date {
+        let calendar = Calendar.current
+        let components = calendar.dateComponents([.weekday], from: self)
+        let currentWeekday = components.weekday!
+        
+        var daysToAdd: Int
+        if currentWeekday == weekday && considerToday {
+            daysToAdd = 0
+        } else if currentWeekday < weekday {
+            daysToAdd = weekday - currentWeekday
+        } else {
+            daysToAdd = 7 - (currentWeekday - weekday)
+        }
+        
+        return calendar.date(byAdding: .day, value: daysToAdd, to: self)!
+    }
+}
+
+#Preview {
+    ChoresView(householdId: "sample_household_id")
+}
