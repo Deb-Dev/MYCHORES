@@ -7,6 +7,11 @@
 import SwiftUI
 import Foundation
 import Combine
+import FirebaseFirestore
+import FirebaseAuth
+
+// Import necessary services
+import Foundation
 
 // Import necessary ViewModels and utilities
 struct HomeView: View {
@@ -63,7 +68,9 @@ struct HomeView: View {
                     .tint(Theme.Colors.primary)
                     .onAppear {
                         // When first showing the tabbed interface, set the selectedHouseholdId to the first one
-                        if selectedHouseholdId == nil, let firstHouseholdId = user.householdIds.first {
+                        if selectedHouseholdId == nil, 
+                           let firstHouseholdId = user.householdIds.first,
+                           !firstHouseholdId.isEmpty {
                             selectedHouseholdId = firstHouseholdId
                         }
                     }
@@ -79,7 +86,7 @@ struct HomeView: View {
     
     private var choresTabView: some View {
         Group {
-            if let householdId = selectedHouseholdId {
+            if let householdId = selectedHouseholdId, !householdId.isEmpty {
                 ChoresView(householdId: householdId)
             } else {
                 Text("Select a household")
@@ -92,7 +99,7 @@ struct HomeView: View {
     
     private var leaderboardTabView: some View {
         Group {
-            if let householdId = selectedHouseholdId {
+            if let householdId = selectedHouseholdId, !householdId.isEmpty {
                 LeaderboardView(householdId: householdId)
             } else {
                 Text("Select a household")
@@ -127,6 +134,7 @@ struct HomeView: View {
 
 /// Onboarding view for users who don't belong to any household yet
 struct HouseholdOnboardingView: View {
+    @EnvironmentObject private var authViewModel: AuthViewModel
     @State private var showingCreateHousehold = false
     @State private var showingJoinHousehold = false
     
@@ -197,11 +205,17 @@ struct HouseholdOnboardingView: View {
             .padding(.horizontal, 24)
         }
         .padding(.horizontal, 16)
-        .sheet(isPresented: $showingCreateHousehold) {
+        .sheet(isPresented: $showingCreateHousehold, onDismiss: refreshUserData) {
             CreateHouseholdView()
         }
-        .sheet(isPresented: $showingJoinHousehold) {
+        .sheet(isPresented: $showingJoinHousehold, onDismiss: refreshUserData) {
             JoinHouseholdView()
+        }
+    }
+    
+    private func refreshUserData() {
+        Task {
+            await authViewModel.refreshCurrentUser()
         }
     }
 }
@@ -222,7 +236,13 @@ struct ProfileView: View {
             }
             
             Button("Sign Out") {
-                try? authViewModel.signOut()
+                Task {
+                    await authViewModel.signOut { success, error in
+                        if !success {
+                            print("Sign out failed: \(error?.localizedDescription ?? "Unknown error")")
+                        }
+                    }
+                }
             }
             .padding()
             .background(Theme.Colors.error)
@@ -233,9 +253,10 @@ struct ProfileView: View {
     }
 }
 
-/// Placeholder for CreateHouseholdView implementation
+/// View for creating a new household
 struct CreateHouseholdView: View {
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var authViewModel: AuthViewModel
     @StateObject private var viewModel = HouseholdViewModel()
     @State private var householdName = ""
     
@@ -315,16 +336,24 @@ struct CreateHouseholdView: View {
         
         viewModel.createHousehold(name: householdName) { success in
             if success {
-                // Dismiss the sheet once the household is created
-                dismiss()
+                // Refresh the user data to update the householdIds array
+                Task {
+                    await authViewModel.refreshCurrentUser()
+                    
+                    // Dismiss the sheet once the household is created and user is refreshed
+                    DispatchQueue.main.async {
+                        dismiss()
+                    }
+                }
             }
         }
     }
 }
 
-/// Placeholder for JoinHouseholdView implementation
+/// View for joining an existing household
 struct JoinHouseholdView: View {
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var authViewModel: AuthViewModel
     @StateObject private var viewModel = HouseholdViewModel()
     @State private var inviteCode = ""
     
@@ -405,8 +434,17 @@ struct JoinHouseholdView: View {
         
         viewModel.joinHousehold(inviteCode: inviteCode) { success in
             if success {
-                // Dismiss the sheet once the household is joined
-                dismiss()
+                // After joining household, refresh the user data in AuthViewModel
+                Task {
+                    // Give Firestore a moment to update
+                    try? await Task.sleep(nanoseconds: 1_000_000_000) // 1 second delay
+                    await authViewModel.refreshCurrentUser()
+                    
+                    // Dismiss the sheet once the household is joined and user is refreshed
+                    DispatchQueue.main.async {
+                        dismiss()
+                    }
+                }
             }
         }
     }

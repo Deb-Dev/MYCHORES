@@ -153,9 +153,12 @@ class NotificationService {
         } else {
             // Schedule an advance notice if there's enough time
             if timeUntilDue > advanceNoticeDuration {
-                let advanceContent = content.copy() as! UNMutableNotificationContent
+                // Create a new mutable content instead of trying to cast
+                let advanceContent = UNMutableNotificationContent()
                 advanceContent.title = "Upcoming Chore"
                 advanceContent.body = "You have a chore \"\(title)\" due in 1 hour"
+                advanceContent.sound = content.sound
+                advanceContent.userInfo = content.userInfo
                 
                 let advanceRequest = UNNotificationRequest(
                     identifier: "chore-advance-\(choreId)",

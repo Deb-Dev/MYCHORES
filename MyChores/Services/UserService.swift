@@ -123,6 +123,15 @@ class UserService {
     ///   - userId: User ID
     ///   - householdId: Household ID to add
     func addUserToHousehold(userId: String, householdId: String) async throws {
+        // Validate parameters
+        guard !userId.isEmpty else {
+            throw NSError(domain: "UserService", code: 4, userInfo: [NSLocalizedDescriptionKey: "User ID cannot be empty"])
+        }
+        
+        guard !householdId.isEmpty else {
+            throw NSError(domain: "UserService", code: 5, userInfo: [NSLocalizedDescriptionKey: "Household ID cannot be empty"])
+        }
+        
         // Add household to user's list
         try await usersCollection.document(userId).updateData([
             "householdIds": FieldValue.arrayUnion([householdId])

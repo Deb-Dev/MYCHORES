@@ -236,7 +236,13 @@ struct ProfileView: View {
             }
             
             Button("Sign Out") {
-                authViewModel.signOut()
+                Task {
+                    await authViewModel.signOut { success, error in
+                        if !success {
+                            print("Sign out failed: \(error?.localizedDescription ?? "Unknown error")")
+                        }
+                    }
+                }
             }
             .padding()
             .foregroundColor(.white)

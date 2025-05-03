@@ -91,6 +91,16 @@ class HouseholdViewModel: ObservableObject {
     ///   - id: Household ID
     ///   - completion: Optional completion handler with success boolean
     func fetchHousehold(id: String, completion: ((Bool) -> Void)? = nil) {
+        // Validate the household ID
+        guard !id.isEmpty else {
+            DispatchQueue.main.async {
+                self.errorMessage = "Household ID cannot be empty"
+                self.isLoading = false
+                completion?(false)
+            }
+            return
+        }
+        
         isLoading = true
         errorMessage = nil
         

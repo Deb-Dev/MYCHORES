@@ -24,6 +24,9 @@ struct Chore: Identifiable, Codable {
     /// ID of the user assigned to complete this chore (optional)
     var assignedToUserId: String?
     
+    /// ID of the user who created the chore
+    var createdByUserId: String?
+    
     /// Due date for the chore to be completed
     var dueDate: Date?
     
@@ -70,6 +73,7 @@ struct Chore: Identifiable, Codable {
         case description
         case householdId
         case assignedToUserId
+        case createdByUserId
         case dueDate
         case isCompleted
         case createdAt

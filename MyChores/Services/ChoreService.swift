@@ -61,12 +61,18 @@ class ChoreService {
         recurrenceDayOfMonth: Int? = nil,
         recurrenceEndDate: Date? = nil
     ) async throws -> Chore {
+        // Get the current user ID
+        guard let currentUserId = Auth.auth().currentUser?.uid else {
+            throw NSError(domain: "ChoreService", code: 401, userInfo: [NSLocalizedDescriptionKey: "User must be logged in to create a chore"])
+        }
+        
         // Create a new chore
         let newChore = Chore(
             title: title,
             description: description,
             householdId: householdId,
             assignedToUserId: assignedToUserId,
+            createdByUserId: currentUserId,
             dueDate: dueDate,
             isCompleted: false,
             createdAt: Date(),

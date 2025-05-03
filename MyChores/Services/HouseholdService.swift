@@ -41,8 +41,8 @@ class HouseholdService {
         // Generate a unique invite code
         let inviteCode = generateInviteCode()
         
-        // Create a new household
-        let newHousehold = Household(
+        // Create a new household (without ID initially)
+        var newHousehold = Household(
             name: name,
             ownerUserId: ownerUserId,
             memberUserIds: [ownerUserId],
@@ -50,19 +50,19 @@ class HouseholdService {
             createdAt: Date()
         )
         
-        // Add to Firestore
-        if let id = newHousehold.id {
-            try householdsCollection.document(id).setData(from: newHousehold)
-        } else {
-            let docRef = try householdsCollection.addDocument(from: newHousehold)
-            // Update the household with its new ID
-            try await householdsCollection.document(docRef.documentID).updateData([
-                "id": docRef.documentID
-            ])
-        }
+        // Add to Firestore and get document reference
+        let docRef = try householdsCollection.addDocument(from: newHousehold)
+        
+        // Update the household with its new ID
+        try await householdsCollection.document(docRef.documentID).updateData([
+            "id": docRef.documentID
+        ])
+        
+        // Update our local object with the ID
+        newHousehold.id = docRef.documentID
         
         // Add household to user's list
-        try await UserService.shared.addUserToHousehold(userId: ownerUserId, householdId: newHousehold.id ?? "")
+        try await UserService.shared.addUserToHousehold(userId: ownerUserId, householdId: docRef.documentID)
         
         return newHousehold
     }
@@ -71,6 +71,12 @@ class HouseholdService {
     /// - Parameter id: Household ID
     /// - Returns: Household if found, nil otherwise
     func fetchHousehold(withId id: String) async throws -> Household? {
+        // Check for empty ID to prevent "Document path cannot be empty" error
+        guard !id.isEmpty else {
+            print("Warning: Attempted to fetch household with empty ID")
+            return nil
+        }
+        
         let documentSnapshot = try await householdsCollection.document(id).getDocument()
         return try documentSnapshot.data(as: Household.self)
     }
@@ -108,6 +114,15 @@ class HouseholdService {
     ///   - userId: User ID to add
     ///   - householdId: Household ID
     func addMember(userId: String, toHouseholdId householdId: String) async throws {
+        // Validate parameters
+        guard !userId.isEmpty else {
+            throw NSError(domain: "HouseholdService", code: 4, userInfo: [NSLocalizedDescriptionKey: "User ID cannot be empty"])
+        }
+        
+        guard !householdId.isEmpty else {
+            throw NSError(domain: "HouseholdService", code: 5, userInfo: [NSLocalizedDescriptionKey: "Household ID cannot be empty"])
+        }
+        
         // Update the household
         try await householdsCollection.document(householdId).updateData([
             "memberUserIds": FieldValue.arrayUnion([userId])

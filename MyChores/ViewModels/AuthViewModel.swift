@@ -7,8 +7,11 @@
 import Foundation
 import Combine
 import SwiftUI
+import FirebaseAuth
+import FirebaseFirestore
 
 /// ViewModel for authentication-related views
+@MainActor
 class AuthViewModel: ObservableObject {
     // MARK: - Published Properties
     
@@ -48,7 +51,7 @@ class AuthViewModel: ObservableObject {
         // Subscribe to auth service changes
         authService.$authState
             .receive(on: DispatchQueue.main)
-            .sink { [weak self] state in
+            .sink { [weak self] (state: AuthService.AuthState) in
                 switch state {
                 case .unknown:
                     self?.authState = .initializing
@@ -68,7 +71,7 @@ class AuthViewModel: ObservableObject {
         
         authService.$currentUser
             .receive(on: DispatchQueue.main)
-            .sink { [weak self] user in
+            .sink { [weak self] (user: User?) in
                 self?.currentUser = user
                 if user != nil && self?.authState == .authenticatedButProfileIncomplete {
                     self?.authState = .authenticated
@@ -78,7 +81,9 @@ class AuthViewModel: ObservableObject {
         
         authService.$errorMessage
             .receive(on: DispatchQueue.main)
-            .assign(to: \.errorMessage, on: self)
+            .sink { [weak self] errorMessage in
+                self?.errorMessage = errorMessage
+            }
             .store(in: &cancellables)
     }
     
@@ -88,24 +93,31 @@ class AuthViewModel: ObservableObject {
     /// - Parameters:
     ///   - email: User's email
     ///   - password: User's password
-    func signIn(email: String, password: String, completion: @escaping (Bool, Error?) -> Void) {
+    ///   - completion: Completion handler with success boolean and optional error
+    func signIn(email: String, password: String, completion: @escaping (Bool, Error?) -> Void) async {
+        guard isValidEmail(email) else {
+            errorMessage = "Please enter a valid email address"
+            completion(false, NSError(domain: "AuthViewModel", code: 100, userInfo: [NSLocalizedDescriptionKey: "Invalid email format"]))
+            return
+        }
+        
+        guard !password.isEmpty else {
+            errorMessage = "Please enter your password"
+            completion(false, NSError(domain: "AuthViewModel", code: 103, userInfo: [NSLocalizedDescriptionKey: "Password is required"]))
+            return
+        }
+        
         isLoading = true
         errorMessage = nil
         
-        Task {
-            do {
-                try await authService.signIn(email: email, password: password)
-                DispatchQueue.main.async {
-                    self.isLoading = false
-                    completion(true, nil)
-                }
-            } catch {
-                DispatchQueue.main.async {
-                    self.isLoading = false
-                    self.errorMessage = error.localizedDescription
-                    completion(false, error)
-                }
-            }
+        do {
+            try await authService.signIn(email: email, password: password)
+            isLoading = false
+            completion(true, nil)
+        } catch {
+            isLoading = false
+            errorMessage = mapAuthError(error)
+            completion(false, error)
         }
     }
     
@@ -114,57 +126,165 @@ class AuthViewModel: ObservableObject {
     ///   - name: User's name
     ///   - email: User's email
     ///   - password: User's password
-    func signUp(name: String, email: String, password: String) {
+    ///   - completion: Completion handler with success boolean and optional error
+    func signUp(name: String, email: String, password: String, completion: @escaping (Bool, Error?) -> Void = {_,_ in }) async {
+        guard !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            errorMessage = "Please enter your name"
+            completion(false, NSError(domain: "AuthViewModel", code: 102, userInfo: [NSLocalizedDescriptionKey: "Name is required"]))
+            return
+        }
+        
+        guard isValidEmail(email) else {
+            errorMessage = "Please enter a valid email address"
+            completion(false, NSError(domain: "AuthViewModel", code: 100, userInfo: [NSLocalizedDescriptionKey: "Invalid email format"]))
+            return
+        }
+        
+        guard password.count >= 6 else {
+            errorMessage = "Password must be at least 6 characters"
+            completion(false, NSError(domain: "AuthViewModel", code: 101, userInfo: [NSLocalizedDescriptionKey: "Password too short"]))
+            return
+        }
+        
         isLoading = true
         errorMessage = nil
         
-        Task {
-            do {
-                try await authService.signUp(name: name, email: email, password: password)
-                DispatchQueue.main.async {
-                    self.isLoading = false
-                }
-            } catch {
-                DispatchQueue.main.async {
-                    self.isLoading = false
-                    self.errorMessage = error.localizedDescription
-                }
+        do {
+            try await authService.signUp(name: name, email: email, password: password)
+            isLoading = false
+            completion(true, nil)
+        } catch {
+            isLoading = false
+            errorMessage = mapAuthError(error)
+            completion(false, error)
+        }
+    }
+    
+    /// Refresh the current user profile data from Firestore
+    /// - Returns: Success boolean
+    @MainActor
+    func refreshCurrentUser() async -> Bool {
+        guard let userId = authService.getCurrentUserId() else {
+            return false
+        }
+        
+        isLoading = true
+        
+        do {
+            if let updatedUser = try await authService.refreshCurrentUser() {
+                self.currentUser = updatedUser
+                isLoading = false
+                return true
             }
+            isLoading = false
+            return false
+        } catch {
+            print("Error refreshing user: \(error.localizedDescription)")
+            isLoading = false
+            return false
         }
     }
     
     /// Sign out the current user
-    func signOut() {
+    /// - Parameter completion: Completion handler with success boolean and optional error
+    func signOut(completion: @escaping (Bool, Error?) -> Void = {_,_ in }) async {
         isLoading = true
         errorMessage = nil
         
         do {
             try authService.signOut()
             isLoading = false
+            completion(true, nil)
         } catch {
             isLoading = false
-            errorMessage = error.localizedDescription
+            errorMessage = mapAuthError(error)
+            completion(false, error)
         }
     }
     
     /// Reset password for a user
-    /// - Parameter email: User's email
-    func resetPassword(for email: String) {
+    /// - Parameters:
+    ///   - email: User's email
+    ///   - completion: Completion handler with success boolean and optional error
+    func resetPassword(for email: String, completion: @escaping (Bool, Error?) -> Void = {_,_ in }) async {
+        guard isValidEmail(email) else {
+            errorMessage = "Please enter a valid email address"
+            completion(false, NSError(domain: "AuthViewModel", code: 100, userInfo: [NSLocalizedDescriptionKey: "Invalid email format"]))
+            return
+        }
+        
         isLoading = true
         errorMessage = nil
         
-        Task {
-            do {
-                try await authService.resetPassword(for: email)
-                DispatchQueue.main.async {
-                    self.isLoading = false
-                }
-            } catch {
-                DispatchQueue.main.async {
-                    self.isLoading = false
-                    self.errorMessage = error.localizedDescription
-                }
+        do {
+            try await authService.resetPassword(for: email)
+            isLoading = false
+            completion(true, nil)
+        } catch {
+            isLoading = false
+            errorMessage = mapAuthError(error)
+            completion(false, error)
+        }
+    }
+    
+    // MARK: - Helper Methods
+    
+    /// Validates email format
+    /// - Parameter email: Email to validate
+    /// - Returns: True if email is valid
+    private func isValidEmail(_ email: String) -> Bool {
+        let emailRegEx = "[A-Z0-9a-z._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,64}"
+        let emailPred = NSPredicate(format:"SELF MATCHES %@", emailRegEx)
+        return emailPred.evaluate(with: email)
+    }
+    
+    /// Maps Firebase Auth errors to user-friendly error messages
+    /// - Parameter error: Firebase Auth error
+    /// - Returns: User-friendly error message
+    private func mapAuthError(_ error: Error) -> String {
+        let nsError = error as NSError
+        
+        // Check if it's a network-related error
+        if nsError.domain == NSURLErrorDomain {
+            return "Network error. Please check your connection and try again."
+        }
+        
+        // For Firebase Auth errors
+        if nsError.domain == AuthErrorDomain {
+            switch nsError.code {
+            case 17009, 17011: // Invalid email or password
+                return "Invalid email or password. Please try again."
+            case 17008: // Invalid email format
+                return "Please enter a valid email address."
+            case 17007: // Email already in use
+                return "This email is already in use. Try signing in or use a different email."
+            case 17026: // Weak password
+                return "Password is too weak. Please use a stronger password."
+            case 17005: // User disabled
+                return "This account has been disabled. Please contact support."
+            case 17020: // Network error
+                return "Network error. Please check your connection and try again."
+            case 17010: // Too many failed attempts
+                return "Too many failed attempts. Please try again later."
+            default:
+                return error.localizedDescription
             }
         }
+        
+        // For Firestore errors
+        if nsError.domain == FirestoreErrorDomain {
+            switch nsError.code {
+            case 7: // Not found
+                return "User profile not found. Please try signing in again."
+            case 14: // Unavailable
+                return "Service temporarily unavailable. Please try again later."
+            case 2: // Internal error
+                return "An unexpected error occurred. Please try again."
+            default:
+                return error.localizedDescription
+            }
+        }
+        
+        return error.localizedDescription
     }
 }

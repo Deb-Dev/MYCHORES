@@ -180,9 +180,14 @@ struct SignInView: View {
     }
     
     private func signIn() {
-        authViewModel.signIn(email: email, password: password, completion: {_,_ in 
-            
-        })
+        Task {
+            await authViewModel.signIn(email: email, password: password) { success, error in
+                // Navigation will happen automatically through the MainView when auth state changes
+                if !success {
+                    print("Sign in failed: \(error?.localizedDescription ?? "Unknown error")")
+                }
+            }
+        }
     }
 }
 
@@ -391,7 +396,14 @@ struct SignUpView: View {
     
     private func signUp() {
         if isFormValid() {
-            authViewModel.signUp(name: name, email: email, password: password)
+            Task {
+                await authViewModel.signUp(name: name, email: email, password: password) { success, error in
+                    // Navigation will happen automatically through the MainView when auth state changes
+                    if !success {
+                        print("Sign up failed: \(error?.localizedDescription ?? "Unknown error")")
+                    }
+                }
+            }
         }
     }
 }
@@ -520,11 +532,13 @@ struct ForgotPasswordView: View {
         guard !email.isEmpty else { return }
         
         Task {
-            do {
-                try await authViewModel.resetPassword(for: email)
-                resetSent = true
-            } catch {
-                // Error will be shown via authViewModel.errorMessage
+            await authViewModel.resetPassword(for: email) { success, error in
+                if success {
+                    resetSent = true
+                } else {
+                    // Error will be shown via authViewModel.errorMessage
+                    print("Reset password failed: \(error?.localizedDescription ?? "Unknown error")")
+                }
             }
         }
     }
