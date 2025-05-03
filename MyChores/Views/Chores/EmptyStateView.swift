@@ -83,7 +83,8 @@ struct EmptyStateView: View {
     }
     
     private var shouldShowAddButton: Bool {
-        // Only show the add button for the "all" filter or when there are no chores at all
-        return filterMode == .all
+        // Show the add button for all filter modes except 'completed'
+        // This allows users to add chores from any empty state view
+        return filterMode != .completed
     }
 }

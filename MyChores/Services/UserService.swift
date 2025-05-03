@@ -125,17 +125,46 @@ class UserService {
     func addUserToHousehold(userId: String, householdId: String) async throws {
         // Validate parameters
         guard !userId.isEmpty else {
-            throw NSError(domain: "UserService", code: 4, userInfo: [NSLocalizedDescriptionKey: "User ID cannot be empty"])
+            throw NSError(domain: "UserService", code: 400, userInfo: [NSLocalizedDescriptionKey: "User ID cannot be empty"])
         }
         
         guard !householdId.isEmpty else {
-            throw NSError(domain: "UserService", code: 5, userInfo: [NSLocalizedDescriptionKey: "Household ID cannot be empty"])
+            throw NSError(domain: "UserService", code: 400, userInfo: [NSLocalizedDescriptionKey: "Household ID cannot be empty"])
         }
         
-        // Add household to user's list
-        try await usersCollection.document(userId).updateData([
-            "householdIds": FieldValue.arrayUnion([householdId])
-        ])
+        // First check if the user exists
+        var userExists = false
+        do {
+            let docSnapshot = try await usersCollection.document(userId).getDocument()
+            userExists = docSnapshot.exists
+        } catch {
+            print("Error checking if user exists: \(error.localizedDescription)")
+        }
+        
+        if !userExists {
+            // Try to create the user with basic details if it doesn't exist
+            if let currentUser = Auth.auth().currentUser {
+                try await createNewUserIfNeeded(
+                    userId: userId,
+                    name: currentUser.displayName ?? "User",
+                    email: currentUser.email ?? "unknown@example.com"
+                )
+            } else {
+                throw NSError(domain: "UserService", code: 404, userInfo: [NSLocalizedDescriptionKey: "User not found and couldn't be created"])
+            }
+        }
+        
+        // Add household to user's list with proper error handling
+        do {
+            try await usersCollection.document(userId).updateData([
+                "householdIds": FieldValue.arrayUnion([householdId])
+            ])
+            print("Successfully added household \(householdId) to user \(userId)")
+        } catch {
+            print("Error adding household to user: \(error.localizedDescription)")
+            throw NSError(domain: "UserService", code: 500, 
+                          userInfo: [NSLocalizedDescriptionKey: "Failed to update user's household list: \(error.localizedDescription)"])
+        }
     }
     
     /// Remove a user from a household
@@ -280,7 +309,13 @@ class UserService {
     /// - Returns: The created User
     func createNewUserIfNeeded(userId: String, name: String, email: String) async throws {
         // Try to fetch the user first
-        let existingUser = try await fetchUser(withId: userId)
+        var existingUser: User?
+        do {
+            existingUser = try await fetchUser(withId: userId)
+        } catch {
+            print("Error fetching user: \(error.localizedDescription) - will create new user")
+            existingUser = nil
+        }
         
         // If user doesn't exist, create a new one
         if existingUser == nil {
@@ -301,8 +336,13 @@ class UserService {
             )
             
             // Save the new user
-            try await db.collection("users").document(userId).setData(from: newUser)
-            print("Created new user: \(userId)")
+            do {
+                try await db.collection("users").document(userId).setData(from: newUser)
+                print("Created new user: \(userId)")
+            } catch {
+                print("Error creating user: \(error.localizedDescription)")
+                throw error
+            }
         }
     }
 }

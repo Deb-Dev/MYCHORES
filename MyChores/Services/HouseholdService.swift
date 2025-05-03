@@ -98,15 +98,34 @@ class HouseholdService {
     /// - Parameter inviteCode: The unique invite code
     /// - Returns: Household if found, nil otherwise
     func findHousehold(byInviteCode inviteCode: String) async throws -> Household? {
-        let querySnapshot = try await householdsCollection
-            .whereField("inviteCode", isEqualTo: inviteCode)
-            .getDocuments()
-        
-        guard let document = querySnapshot.documents.first else {
-            return nil
+        // Validate invite code
+        guard !inviteCode.isEmpty else {
+            throw NSError(domain: "HouseholdService", code: 400, userInfo: [NSLocalizedDescriptionKey: "Invite code cannot be empty"])
         }
         
-        return try document.data(as: Household.self)
+        // Normalize the invite code (uppercase, trim whitespace)
+        let normalizedCode = inviteCode.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
+        
+        // Query Firestore for the household
+        do {
+            let querySnapshot = try await householdsCollection
+                .whereField("inviteCode", isEqualTo: normalizedCode)
+                .getDocuments()
+            
+            guard let document = querySnapshot.documents.first else {
+                return nil
+            }
+            
+            return try document.data(as: Household.self)
+        } catch let error as DecodingError {
+            // Handle specific Firestore decoding errors
+            print("Error decoding household data: \(error)")
+            throw NSError(domain: "HouseholdService", code: 422, 
+                          userInfo: [NSLocalizedDescriptionKey: "Unable to process household data. Please try again."])
+        } catch {
+            // Re-throw any other errors
+            throw error
+        }
     }
     
     /// Add a user to a household
@@ -116,20 +135,41 @@ class HouseholdService {
     func addMember(userId: String, toHouseholdId householdId: String) async throws {
         // Validate parameters
         guard !userId.isEmpty else {
-            throw NSError(domain: "HouseholdService", code: 4, userInfo: [NSLocalizedDescriptionKey: "User ID cannot be empty"])
+            throw NSError(domain: "HouseholdService", code: 400, userInfo: [NSLocalizedDescriptionKey: "User ID cannot be empty"])
         }
         
         guard !householdId.isEmpty else {
-            throw NSError(domain: "HouseholdService", code: 5, userInfo: [NSLocalizedDescriptionKey: "Household ID cannot be empty"])
+            throw NSError(domain: "HouseholdService", code: 400, userInfo: [NSLocalizedDescriptionKey: "Household ID cannot be empty"])
         }
         
-        // Update the household
-        try await householdsCollection.document(householdId).updateData([
-            "memberUserIds": FieldValue.arrayUnion([userId])
-        ])
+        // First, get the current household to ensure we're not already a member
+        let household = try await fetchHousehold(withId: householdId)
+        guard let household = household else {
+            throw NSError(domain: "HouseholdService", code: 404, userInfo: [NSLocalizedDescriptionKey: "Household not found"])
+        }
         
-        // Update the user
-        try await UserService.shared.addUserToHousehold(userId: userId, householdId: householdId)
+        // Check if user is already a member
+        if household.memberUserIds.contains(userId) {
+            print("User is already a member of this household, no update needed")
+            return
+        }
+        
+        // Create a new array of member IDs that includes the new user
+        var updatedMemberIds = household.memberUserIds
+        updatedMemberIds.append(userId)
+        
+        // Update the household with the new member list
+        do {
+            try await householdsCollection.document(householdId).updateData([
+                "memberUserIds": updatedMemberIds
+            ])
+            
+            // Update the user
+            try await UserService.shared.addUserToHousehold(userId: userId, householdId: householdId)
+        } catch {
+            print("Error updating household members: \(error.localizedDescription)")
+            throw error
+        }
     }
     
     /// Remove a user from a household

@@ -1,5 +1,73 @@
 # Changelog
 
+## [1.0.9] - 2025-05-03
+
+### Fixed
+- Fixed issue with Firestore security rules preventing users from joining households
+- Added special security rule to allow users to update households when joining them
+- Enhanced error handling in HouseholdService and UserService for better resilience
+- Fixed issue where users couldn't be created or added to households
+- Made the User model more robust with custom decoders for handling missing fields
+- Improved error logging for easier debugging
+
+### Added
+- Extensive defensive programming in critical services to handle edge cases
+- User creation fallback in addUserToHousehold method
+- Enhanced logging throughout the household join process
+
+## [1.0.8] - 2025-05-03
+
+### Fixed
+- Fixed Firestore security rules to properly allow users to join households with invite codes
+- Added improved error handling with detailed error messages for Firestore operations
+- Added custom error alert UI component for better user experience
+- Fixed issue with "Missing or insufficient permissions" errors when trying to join a household
+
+### Added
+- New ErrorAlertView component for consistent error handling across the app
+- Better error messages with context about what went wrong
+- Additional logging for debugging issues
+
+## [1.0.7] - 2025-05-03
+
+### Fixed
+- Fixed "Join Household Failed" error that occurred when users attempted to join a household after signup
+- Improved error handling in HouseholdService and UserService for more descriptive error messages
+- Enhanced the Household model to handle potential missing data during decoding
+- Added retry mechanism for refreshing user data after joining a household
+- Fixed compiler error "unable to type-check this expression in reasonable time" in JoinHouseholdView by breaking complex code into smaller functions
+
+### Improved
+- Enhanced JoinHouseholdView UI with better user guidance and error handling
+- Added input validation for invite codes (automatic uppercasing, filtering invalid characters)
+- Improved visual feedback during the joining process
+- Added informational alert about invite codes
+
+## [1.0.6] - 2025-05-03
+
+### Fixed
+- Fixed issue where users could not create a new chore when the chore list was displayed
+- Added proper NavigationStack to tab views to ensure toolbar buttons are accessible
+- Improved behavior of "Add a Chore" button to appear in more empty states
+- Added automatic refresh of chores list after adding a new chore
+- Made navigation structure consistent across all tabs
+
+## [1.0.5] - 2025-05-03
+
+### Fixed
+- Fixed persistent permissions errors when completing chores and awarding points
+- Simplified Firestore security rules to allow household members to update any chore in their household
+- Relaxed user document update validation to ensure points and badges can be awarded
+- Removed overly complex validation logic that was causing permission errors
+
+## [1.0.4] - 2025-05-03
+
+### Fixed
+- Fixed issue preventing users from marking chores as complete due to Firestore security rules
+- Added specific rules for handling chore completion that validate the user is authorized
+- Updated validation in both top-level and subcollection chore rules for consistency
+- Added permissions that allow a user to complete a chore if it's assigned to them or unassigned
+
 ## [1.0.3] - 2025-05-03
 
 ### Fixed

@@ -59,7 +59,10 @@ struct ChoresView: View {
                     }
                 }
             }
-            .sheet(isPresented: $showingAddChore) {
+            .sheet(isPresented: $showingAddChore, onDismiss: {
+                // Refresh chores when sheet is dismissed
+                viewModel.loadChores()
+            }) {
                 AddChoreView(householdId: viewModel.householdId)
             }
             .sheet(item: $showingChoreDetail) { chore in

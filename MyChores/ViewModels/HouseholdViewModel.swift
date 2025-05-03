@@ -169,7 +169,7 @@ class HouseholdViewModel: ObservableObject {
     ///   - completion: Optional completion handler with success boolean
     func joinHousehold(inviteCode: String, completion: ((Bool) -> Void)? = nil) {
         guard let userId = AuthService.shared.getCurrentUserId() else {
-            errorMessage = "Not signed in"
+            errorMessage = "You need to be signed in to join a household"
             completion?(false)
             return
         }
@@ -180,9 +180,23 @@ class HouseholdViewModel: ObservableObject {
         Task {
             do {
                 // Find the household
-                guard let household = try await householdService.findHousehold(byInviteCode: inviteCode) else {
+                let household: Household?
+                do {
+                    household = try await householdService.findHousehold(byInviteCode: inviteCode)
+                } catch {
+                    print("Error finding household: \(error.localizedDescription)")
                     DispatchQueue.main.async {
-                        self.errorMessage = "Invalid invite code"
+                        self.errorMessage = "We couldn't find that household: \(error.localizedDescription)"
+                        self.isLoading = false
+                        completion?(false)
+                    }
+                    return
+                }
+                
+                // Check if household was found
+                guard let household = household else {
+                    DispatchQueue.main.async {
+                        self.errorMessage = "We couldn't find a household with that invite code. Please check the code and try again."
                         self.isLoading = false
                         completion?(false)
                     }
@@ -201,23 +215,43 @@ class HouseholdViewModel: ObservableObject {
                 
                 // Add user to household
                 if let id = household.id {
-                    try await householdService.addMember(userId: userId, toHouseholdId: id)
-                    
-                    // Reload the households
-                    let updatedHouseholds = try await householdService.fetchHouseholds(forUserId: userId)
-                    
-                    DispatchQueue.main.async {
-                        self.households = updatedHouseholds
-                        self.selectedHousehold = household
-                        self.isLoading = false
-                        completion?(true)
+                    do {
+                        try await householdService.addMember(userId: userId, toHouseholdId: id)
+                        
+                        // Reload the households
+                        var updatedHouseholds: [Household] = []
+                        do {
+                            updatedHouseholds = try await householdService.fetchHouseholds(forUserId: userId)
+                        } catch {
+                            print("Error fetching updated households: \(error.localizedDescription)")
+                            // Continue anyway since the user was added to the household
+                        }
+                        
+                        DispatchQueue.main.async {
+                            self.households = updatedHouseholds
+                            self.selectedHousehold = household
+                            self.isLoading = false
+                            completion?(true)
+                        }
+                    } catch {
+                        print("Failed to add member: \(error.localizedDescription)")
+                        DispatchQueue.main.async {
+                            self.errorMessage = "We couldn't add you to the household. The server says: \(error.localizedDescription)"
+                            self.isLoading = false
+                            completion?(false)
+                        }
                     }
                 } else {
-                    throw NSError(domain: "HouseholdViewModel", code: 1, userInfo: [NSLocalizedDescriptionKey: "Invalid household ID"])
+                    DispatchQueue.main.async {
+                        self.errorMessage = "The household ID is missing. Please try again or contact support."
+                        self.isLoading = false
+                        completion?(false)
+                    }
                 }
             } catch {
+                print("joinHousehold error: \(error.localizedDescription)")
                 DispatchQueue.main.async {
-                    self.errorMessage = "Failed to join household: \(error.localizedDescription)"
+                    self.errorMessage = "Something went wrong while trying to join the household: \(error.localizedDescription)"
                     self.isLoading = false
                     completion?(false)
                 }

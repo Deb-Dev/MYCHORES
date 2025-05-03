@@ -1,11 +1,13 @@
 ## General
-For any changes you make. Summarize the changes in the chnagelog.md file.
+Before making any changes, check the existing code for similar implementations to avoid duplication.
+Always try to find the root cause of any issues you encounter and fix them rather than applying quick fixes.
+Ask preplexity for any firebase, firestore or related usages to check the latest documentation.
 Follow the same architectural and stylistic patterns consistently throughout the project.
+For any changes you make. Summarize the changes in the chnagelog.md file.
 Emphasize modularity, separation of concerns, and loose coupling.
 Make the UI look beautiful and user-friendly use best in class elite design practices.
+Use `@MainActor` for UI-related code to ensure it runs on the main thread.
 Define a list of cool looking colors and fonts in a central place (e.g., `Assets.xcassets` or a dedicated `Theme` file) to ensure consistency across the app.
-ask preplexity for any firebase related usages to check the latest documentation.
-always try to find the root cause of any issues you encounter and fix them rather than applying quick fixes.
 
 ## Architectural Guidelines
 

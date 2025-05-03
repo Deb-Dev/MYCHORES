@@ -64,6 +64,99 @@ struct User: Identifiable, Codable {
         case currentMonthStartDate
         case earnedBadges
     }
+    
+    /// Custom initializer to handle potential issues with missing data
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        
+        // Required fields
+        id = try container.decodeIfPresent(String.self, forKey: .id)
+        name = try container.decode(String.self, forKey: .name)
+        email = try container.decode(String.self, forKey: .email)
+        
+        // Optional fields with defaults
+        photoURL = try container.decodeIfPresent(String.self, forKey: .photoURL)
+        fcmToken = try container.decodeIfPresent(String.self, forKey: .fcmToken)
+        
+        // Arrays with defaults
+        do {
+            householdIds = try container.decode([String].self, forKey: .householdIds)
+        } catch {
+            householdIds = []
+            print("Warning: householdIds not found, defaulting to empty array")
+        }
+        
+        do {
+            earnedBadges = try container.decode([String].self, forKey: .earnedBadges)
+        } catch {
+            earnedBadges = []
+            print("Warning: earnedBadges not found, defaulting to empty array")
+        }
+        
+        // Dates
+        do {
+            createdAt = try container.decode(Date.self, forKey: .createdAt)
+        } catch {
+            createdAt = Date()
+            print("Warning: createdAt not found, defaulting to current date")
+        }
+        
+        currentWeekStartDate = try container.decodeIfPresent(Date.self, forKey: .currentWeekStartDate)
+        currentMonthStartDate = try container.decodeIfPresent(Date.self, forKey: .currentMonthStartDate)
+        
+        // Numeric values with defaults
+        do {
+            totalPoints = try container.decode(Int.self, forKey: .totalPoints)
+        } catch {
+            totalPoints = 0
+            print("Warning: totalPoints not found, defaulting to 0")
+        }
+        
+        do {
+            weeklyPoints = try container.decode(Int.self, forKey: .weeklyPoints)
+        } catch {
+            weeklyPoints = 0
+            print("Warning: weeklyPoints not found, defaulting to 0")
+        }
+        
+        do {
+            monthlyPoints = try container.decode(Int.self, forKey: .monthlyPoints)
+        } catch {
+            monthlyPoints = 0
+            print("Warning: monthlyPoints not found, defaulting to 0")
+        }
+    }
+    
+    /// Standard initializer
+    init(
+        id: String? = nil,
+        name: String,
+        email: String,
+        photoURL: String? = nil,
+        householdIds: [String] = [],
+        fcmToken: String? = nil,
+        createdAt: Date = Date(),
+        totalPoints: Int = 0,
+        weeklyPoints: Int = 0,
+        monthlyPoints: Int = 0,
+        currentWeekStartDate: Date? = nil,
+        currentMonthStartDate: Date? = nil,
+        earnedBadges: [String] = []
+    ) {
+        self.id = id
+        self.name = name
+        self.email = email
+        self.photoURL = photoURL
+        self.householdIds = householdIds
+        self.fcmToken = fcmToken
+        self.createdAt = createdAt
+        self.totalPoints = totalPoints
+        self.weeklyPoints = weeklyPoints
+        self.monthlyPoints = monthlyPoints
+        self.currentWeekStartDate = currentWeekStartDate
+        self.currentMonthStartDate = currentMonthStartDate
+        self.earnedBadges = earnedBadges
+    }
 }
 
 // MARK: - Sample Data

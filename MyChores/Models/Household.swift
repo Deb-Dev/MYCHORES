@@ -36,6 +36,46 @@ struct Household: Identifiable, Codable, Equatable {
         case inviteCode
         case createdAt
     }
+    
+    /// Custom initializer to handle potential issues with missing data
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        
+        // Required fields
+        name = try container.decode(String.self, forKey: .name)
+        ownerUserId = try container.decode(String.self, forKey: .ownerUserId)
+        inviteCode = try container.decode(String.self, forKey: .inviteCode)
+        
+        // Handle potential missing fields with defaults
+        // DocumentID is handled by Firestore
+        id = try container.decodeIfPresent(String.self, forKey: .id)
+        
+        // If memberUserIds is missing, default to an array with just the owner
+        do {
+            memberUserIds = try container.decode([String].self, forKey: .memberUserIds)
+        } catch {
+            memberUserIds = [ownerUserId]
+            print("Warning: memberUserIds not found, defaulting to owner only")
+        }
+        
+        // If createdAt is missing, default to now
+        do {
+            createdAt = try container.decode(Date.self, forKey: .createdAt)
+        } catch {
+            createdAt = Date()
+            print("Warning: createdAt not found, defaulting to current date")
+        }
+    }
+    
+    /// Standard initializer
+    init(id: String? = nil, name: String, ownerUserId: String, memberUserIds: [String], inviteCode: String, createdAt: Date) {
+        self.id = id
+        self.name = name
+        self.ownerUserId = ownerUserId
+        self.memberUserIds = memberUserIds
+        self.inviteCode = inviteCode
+        self.createdAt = createdAt
+    }
 }
 
 // MARK: - Sample Data

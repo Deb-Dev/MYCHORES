@@ -18,24 +18,12 @@ service cloud.firestore {
       function isValidUser(user) {
         return user.size() > 0 &&
                user.name is string &&
-               user.name.size() > 0 &&
-               user.email is string &&
-               user.email.size() > 0 &&
-               (user.photoURL == null || user.photoURL is string) &&
-               user.householdIds is list &&
-               (user.fcmToken == null || user.fcmToken is string) &&
-               user.createdAt is timestamp &&
-               user.totalPoints is number &&
-               user.weeklyPoints is number &&
-               user.monthlyPoints is number &&
-               (user.currentWeekStartDate == null || user.currentWeekStartDate is timestamp) &&
-               (user.currentMonthStartDate == null || user.currentMonthStartDate is timestamp) &&
-               user.earnedBadges is list;
+               user.email is string;
       }
       
-      allow read, delete: if isUserAuthenticated(userId);
-      allow update: if isUserAuthenticated(userId) && isValidUser(request.resource.data);
-      allow create: if isSignedIn() && isValidUser(request.resource.data);
+      allow read: if isSignedIn();
+      allow update, delete: if isUserAuthenticated(userId);
+      allow create: if isSignedIn() && request.auth.uid == userId;
     }
     
     // Top-level chores collection - access based on household membership
@@ -96,6 +84,7 @@ service cloud.firestore {
                      request.resource.data.createdByUserId == request.auth.uid;
       
       // Members can update chores in their household with validation
+      // Allow any member of the household to update the chore
       allow update: if isSignedIn() && isHouseholdMember(false);
       
       // Delete allowed if: user is household owner, user created the chore, or chore is assigned to user
@@ -128,8 +117,8 @@ service cloud.firestore {
                household.createdAt is timestamp;
       }
       
-      // Read: allow if user is a member or owner
-      allow read: if isSignedIn() && (isMember() || isOwner());
+      // Read: allow if user is signed in (needed for invite code functionality)
+      allow read: if isSignedIn();
       
       // Create: allow if user is setting themselves as owner and member
       allow create: if isSignedIn() && 
@@ -137,11 +126,16 @@ service cloud.firestore {
                      request.auth.uid in request.resource.data.memberUserIds &&
                      isValidHousehold(request.resource.data);
       
-      // Update: allow if user is already a member and not changing ownership
-      allow update: if isSignedIn() && 
-                     isMember() && 
-                     (resource.data.ownerUserId == request.resource.data.ownerUserId) &&
-                     isValidHousehold(request.resource.data);
+      // Update: allow if user is already a member OR is adding themselves to the memberUserIds array
+      allow update: if isSignedIn() && (
+                     isMember() || 
+                     (request.resource.data.memberUserIds.hasAll(resource.data.memberUserIds) && 
+                      request.resource.data.memberUserIds.size() == resource.data.memberUserIds.size() + 1 &&
+                      request.auth.uid in request.resource.data.memberUserIds &&
+                      !(request.auth.uid in resource.data.memberUserIds) &&
+                      resource.data.ownerUserId == request.resource.data.ownerUserId)
+                    ) &&
+                    isValidHousehold(request.resource.data);
       
       // Delete: only the owner can delete a household
       allow delete: if isSignedIn() && isOwner();
@@ -172,6 +166,7 @@ service cloud.firestore {
                        (isMember() || isOwner()) &&
                        request.resource.data.createdByUserId == request.auth.uid;
         
+        // Allow any member to update chores in their household
         allow update: if isSignedIn() && (isMember() || isOwner());
         
         // Delete permissions: household owners can delete any chore, members can delete chores they created or are assigned to

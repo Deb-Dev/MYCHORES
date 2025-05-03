@@ -165,19 +165,47 @@ class AuthViewModel: ObservableObject {
     @MainActor
     func refreshCurrentUser() async -> Bool {
         guard let userId = authService.getCurrentUserId() else {
+            print("refreshCurrentUser: No current user ID")
             return false
         }
         
         isLoading = true
         
         do {
+            print("Attempting to refresh user: \(userId)")
             if let updatedUser = try await authService.refreshCurrentUser() {
+                print("Successfully refreshed user")
                 self.currentUser = updatedUser
                 isLoading = false
                 return true
+            } else {
+                print("User refresh returned nil")
+                
+                // Try to make sure the user exists in Firestore
+                if let firebaseUser = Auth.auth().currentUser {
+                    print("Attempting to create user if needed: \(userId)")
+                    do {
+                        try await UserService.shared.createNewUserIfNeeded(
+                            userId: userId,
+                            name: firebaseUser.displayName ?? "User",
+                            email: firebaseUser.email ?? "unknown@example.com"
+                        )
+                        
+                        // Try to fetch the user again
+                        if let createdUser = try await authService.refreshCurrentUser() {
+                            print("Successfully created and fetched user")
+                            self.currentUser = createdUser
+                            isLoading = false
+                            return true
+                        }
+                    } catch {
+                        print("Error creating user: \(error.localizedDescription)")
+                    }
+                }
+                
+                isLoading = false
+                return false
             }
-            isLoading = false
-            return false
         } catch {
             print("Error refreshing user: \(error.localizedDescription)")
             isLoading = false
