@@ -74,8 +74,24 @@ class UserService {
     /// - Parameter id: User ID
     /// - Returns: User object if found, nil otherwise
     func fetchUser(withId id: String) async throws -> User? {
-        let documentSnapshot = try await usersCollection.document(id).getDocument()
-        return try documentSnapshot.data(as: User.self)
+        do {
+            let documentSnapshot = try await usersCollection.document(id).getDocument()
+            
+            // Check if the document exists
+            guard documentSnapshot.exists else {
+                print("⚠️ User document does not exist: \(id)")
+                return nil
+            }
+            
+            // Try to parse the user data
+            let user = try documentSnapshot.data(as: User.self)
+            print("✅ Successfully fetched user: \(user.name) (ID: \(user.id ?? "unknown"))")
+            return user
+            
+        } catch {
+            print("❌ Error fetching user \(id): \(error.localizedDescription)")
+            throw error
+        }
     }
     
     /// Fetch multiple users by their IDs
@@ -83,21 +99,51 @@ class UserService {
     /// - Returns: Dictionary mapping user IDs to User objects
     func fetchUsers(withIds ids: [String]) async throws -> [String: User] {
         var userDict: [String: User] = [:]
+        print("📊 Fetching \(ids.count) users: \(ids)")
         
-        // Firestore has a limit of 10 documents per query
-        let chunks = ids.chunked(into: 10)
-        
-        for chunk in chunks {
-            let querySnapshot = try await usersCollection
-                .whereField(FieldPath.documentID(), in: chunk)
-                .getDocuments()
+        // First try to use the whereField query for efficiency
+        do {
+            // Firestore has a limit of 10 documents per query
+            let chunks = ids.chunked(into: 10)
             
-            for document in querySnapshot.documents {
-                if let user = try? document.data(as: User.self) {
-                    if let userId = user.id {
-                        userDict[userId] = user
+            for chunk in chunks {
+                let querySnapshot = try await usersCollection
+                    .whereField(FieldPath.documentID(), in: chunk)
+                    .getDocuments()
+                
+                print("📊 Got \(querySnapshot.documents.count) documents from chunk of \(chunk.count)")
+                
+                for document in querySnapshot.documents {
+                    if let user = try? document.data(as: User.self) {
+                        if let userId = user.id {
+                            userDict[userId] = user
+                            print("✅ Successfully decoded user: \(user.name)")
+                        }
                     }
                 }
+            }
+            
+            // If we got all the users, return them
+            if userDict.count == ids.count {
+                return userDict
+            }
+            
+            // If we didn't get all users, try fetching them individually
+            print("⚠️ Batch query didn't return all users. Fetching individually...")
+        } catch (let error) {
+            print("❌ Error fetching users with batch query: \(error.localizedDescription)")
+            print("⚠️ Falling back to individual fetches...")
+        }
+        
+        // Fallback: fetch each user individually
+        for userId in ids {
+            do {
+                if let user = try await fetchUser(withId: userId) {
+                    userDict[userId] = user
+                    print("✅ Individually fetched user: \(user.name)")
+                }
+            } catch {
+                print("❌ Error fetching user \(userId): \(error.localizedDescription)")
             }
         }
         
@@ -242,6 +288,91 @@ class UserService {
         return true
     }
     
+    // MARK: - Household Methods
+    
+    /// Get all members of a household
+    /// - Parameter householdId: Household ID
+    /// - Returns: Array of users who are members of the household
+    func getAllHouseholdMembers(forHouseholdId householdId: String) async throws -> [User] {
+        print("🏠 Fetching members for household: \(householdId)")
+        
+        // First get the household to get all member IDs
+        let household = try await HouseholdService.shared.fetchHousehold(withId: householdId)
+        guard let memberIds = household?.memberUserIds, !memberIds.isEmpty else {
+            print("⚠️ Household has no members or wasn't found")
+            return []
+        }
+        
+        print("🏠 Household \(household?.name ?? "unknown") has \(memberIds.count) members: \(memberIds)")
+        
+        // Get all users directly (more reliable)
+        let users = try await getReliableHouseholdMembers(memberIds: memberIds)
+        
+        print("👥 Found \(users.count) users for household")
+        
+        // Return sorted by name for display purposes
+        return users.sorted { $0.name < $1.name }
+    }
+    
+    /// Get household members with multiple fallback strategies
+    /// - Parameter memberIds: Array of member user IDs
+    /// - Returns: Array of User objects
+    private func getReliableHouseholdMembers(memberIds: [String]) async throws -> [User] {
+        var users: [User] = []
+        
+        // Try to get each user individually - most reliable method
+        for (index, userId) in memberIds.enumerated() {
+            do {
+                var user = try await fetchUser(withId: userId)
+                
+                // If user is found but has nil ID, assign the original userId
+                if let foundUser = user, foundUser.id == nil {
+                    // We need to create a mutable copy since User is a struct
+                    var mutableUser = foundUser
+                    
+                    // Force unwrap is safe here because we're explicitly setting it
+                    mutableUser.forceSetId(userId)
+                    user = mutableUser
+                    
+                    print("⚠️ Fixed nil ID for user: \(mutableUser.name)")
+                }
+                
+                if let user = user {
+                    users.append(user)
+                    print("✅ Successfully fetched user: \(user.name) with ID: \(user.id ?? "still nil!")")
+                }
+            } catch {
+                print("❌ Error fetching individual user \(userId): \(error.localizedDescription)")
+            }
+        }
+        
+        // If we got all users, return them
+        if users.count == memberIds.count {
+            return users
+        }
+        
+        // If direct fetching didn't work well, try our batch method as a fallback
+        if users.count < memberIds.count {
+            print("⚠️ Individual fetches incomplete. Trying batch query as fallback...")
+            
+            do {
+                let userDict = try await fetchUsers(withIds: memberIds)
+                
+                // Add any users we didn't already have
+                for (id, user) in userDict {
+                    if !users.contains(where: { $0.id == id }) {
+                        users.append(user)
+                        print("✅ Added user from batch query: \(user.name)")
+                    }
+                }
+            } catch {
+                print("❌ Error with batch user query: \(error.localizedDescription)")
+            }
+        }
+        
+        return users
+    }
+    
     // MARK: - Leaderboard Methods
     
     /// Get the weekly leaderboard for a household
@@ -350,12 +481,14 @@ class UserService {
 // MARK: - Array Extension for Chunking
 
 extension Array {
-    /// Split an array into chunks of specified size
-    /// - Parameter size: Chunk size
-    /// - Returns: Array of array chunks
+    /// Split array into chunks of specified size
+    /// - Parameter size: Maximum size of each chunk
+    /// - Returns: Array of chunks
     func chunked(into size: Int) -> [[Element]] {
-        return stride(from: 0, to: count, by: size).map {
-            Array(self[$0 ..< Swift.min($0 + size, count)])
+        stride(from: 0, to: count, by: size).map {
+            Array(self[$0..<Swift.min($0 + size, count)])
         }
     }
 }
+
+// MARK: - User Service

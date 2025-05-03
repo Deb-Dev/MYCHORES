@@ -5,6 +5,8 @@
 //
 
 import SwiftUI
+import FirebaseFirestore
+import FirebaseAuth
 
 /// Detail view for a chore
 struct ChoreDetailView: View {
@@ -15,6 +17,9 @@ struct ChoreDetailView: View {
     let onDelete: () -> Void
     
     @State private var showingDeleteConfirmation = false
+    
+    /// Dictionary to store user names keyed by user ID
+    @State private var userNames: [String: String] = [:]
     
     var body: some View {
         NavigationStack {
@@ -50,6 +55,10 @@ struct ChoreDetailView: View {
                 }
             } message: {
                 Text("Are you sure you want to delete this chore? This action cannot be undone.")
+            }
+            .onAppear {
+                // Load user information for display
+                loadUserInformation()
             }
         }
     }
@@ -88,7 +97,7 @@ struct ChoreDetailView: View {
             if let assignedToUserId = chore.assignedToUserId {
                 infoCard(
                     title: "Assigned To",
-                    value: getAssignedUserName(assignedToUserId),
+                    value: userNames[assignedToUserId] ?? "Loading...",
                     icon: "person.fill",
                     color: Theme.Colors.secondary
                 )
@@ -258,10 +267,37 @@ struct ChoreDetailView: View {
         return formatter.string(from: date)
     }
     
-    private func getAssignedUserName(_ userId: String) -> String {
-        // In a real app, this would look up the user's name from a service
-        // For now, just return a placeholder based on the user ID
-        return "User"
+    /// Load user information for display
+    private func loadUserInformation() {
+        // Load the assigned user's name if there is one
+        if let userId = chore.assignedToUserId {
+            loadUserName(userId)
+        }
+        
+        // Also load the creator if available
+        if let creatorId = chore.createdByUserId {
+            loadUserName(creatorId)
+        }
+        
+        // And the completer
+        if let completerId = chore.completedByUserId {
+            loadUserName(completerId)
+        }
+    }
+    
+    /// Loads a user's name by their ID
+    private func loadUserName(_ userId: String) {
+        Task {
+            do {
+                if let user = try await UserService.shared.fetchUser(withId: userId) {
+                    await MainActor.run {
+                        userNames[userId] = user.name
+                    }
+                }
+            } catch {
+                print("Error fetching user name for ID \(userId): \(error.localizedDescription)")
+            }
+        }
     }
     
     private func getRecurrenceText() -> String {

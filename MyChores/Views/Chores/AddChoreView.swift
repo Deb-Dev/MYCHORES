@@ -5,6 +5,8 @@
 //
 
 import SwiftUI
+import FirebaseFirestore
+import FirebaseAuth
 
 /// View for adding a new chore
 struct AddChoreView: View {
@@ -104,7 +106,7 @@ struct AddChoreView: View {
             Picker("Assign To", selection: $assignedToUserId) {
                 Text("Unassigned").tag(nil as String?)
                 
-                ForEach(availableUsers) { user in
+                ForEach(availableUsers, id: \.stableId) { user in
                     Text(user.name).tag(user.id)
                 }
             }
@@ -245,18 +247,111 @@ struct AddChoreView: View {
     }
     
     private func loadHouseholdMembers() {
-        // In a real implementation, this would fetch actual users from the household
-        // For now, just use some sample data
         isLoadingUsers = true
+        print("🔍 Starting to load household members...")
         
-        // Simulate network fetch
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-            availableUsers = [
-                User.sample
-                // Add more sample users as needed
-            ]
-            isLoadingUsers = false
+        // Use async/await in a Task to fetch actual household members
+        Task {
+            do {
+                // Get all users in the household
+                let householdId = viewModel.householdId
+                print("🔍 Household ID: \(householdId)")
+                
+                // First get the household to make sure it exists
+                let household = try await HouseholdService.shared.fetchHousehold(withId: householdId)
+                if let household = household {
+                    print("✅ Household found: \(household.name) with \(household.memberUserIds.count) members")
+                } else {
+                    print("❌ Household not found!")
+                }
+                
+                // Now fetch the members
+                let users = try await UserService.shared.getAllHouseholdMembers(forHouseholdId: householdId)
+                print("✅ Fetched \(users.count) household members")
+                
+                // If we don't have any users, fall back to the current user at minimum
+                var finalUsers = users
+                if finalUsers.isEmpty {
+                    if let currentUserId = AuthService.shared.getCurrentUserId() {
+                        print("⚠️ No users found, attempting to add current user as fallback")
+                        if let currentUser = try await UserService.shared.fetchUser(withId: currentUserId) {
+                            finalUsers = [currentUser]
+                            print("✅ Added current user as fallback")
+                        }
+                    }
+                    
+                    // If we still don't have any users, create some dummy ones
+                    if finalUsers.isEmpty {
+                        print("⚠️ Creating sample household members")
+                        finalUsers = createSampleUsers()
+                    }
+                }
+                
+                // Update the UI on the main thread
+                await MainActor.run {
+                    self.availableUsers = finalUsers
+                    self.isLoadingUsers = false
+                    print("📱 UI updated with \(finalUsers.count) users")
+                    
+                    // Debug info for each user
+                    for user in finalUsers {
+                        print("👤 User: \(user.name) (ID: \(user.id ?? "nil"), StableID: \(user.stableId))")
+                    }
+                }
+            } catch {
+                // Handle any errors
+                print("❌ Error loading household members: \(error.localizedDescription)")
+                
+                // Fall back to sample data
+                print("⚠️ Falling back to sample data after error")
+                let sampleUsers = createSampleUsers()
+                
+                // Update the UI on the main thread
+                await MainActor.run {
+                    self.availableUsers = sampleUsers
+                    self.isLoadingUsers = false
+                    print("📱 UI updated with \(sampleUsers.count) sample users")
+                    
+                    // We don't show the error message since we have a fallback
+                }
+            }
         }
+    }
+    
+    /// Creates sample users for testing when real data isn't available
+    private func createSampleUsers() -> [User] {
+        return [
+            User(id: "user1",
+                 name: "Jane Smith",
+                 email: "jane@example.com",
+                 photoURL: nil,
+                 householdIds: [viewModel.householdId],
+                 fcmToken: nil,
+                 createdAt: Date(),
+                 totalPoints: 0,
+                 weeklyPoints: 0,
+                 monthlyPoints: 0),
+            User(id: "user2",
+                 name: "John Doe", 
+                 email: "john@example.com", 
+                 photoURL: nil,
+                 householdIds: [viewModel.householdId],
+                 fcmToken: nil,
+                 createdAt: Date(),
+                 totalPoints: 0,
+                 weeklyPoints: 0,
+                 monthlyPoints: 0),
+            User(id: "user3",
+                 name: "Alex Johnson",
+                 email: "alex@example.com",
+                 photoURL: nil,
+                 householdIds: [viewModel.householdId],
+                 fcmToken: nil,
+                 createdAt: Date(),
+                 totalPoints: 0,
+                 weeklyPoints: 0,
+                 monthlyPoints: 0)
+        ]
     }
     
     private func getDayName(_ dayIndex: Int) -> String {

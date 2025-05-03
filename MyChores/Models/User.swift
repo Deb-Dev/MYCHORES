@@ -12,6 +12,11 @@ struct User: Identifiable, Codable {
     /// Unique identifier, matches Firebase Auth UID
     @DocumentID var id: String?
     
+    /// Stable ID for view identification when DocumentID might be nil
+    var stableId: String {
+        return id ?? UUID().uuidString
+    }
+    
     /// User's display name 
     var name: String
     
@@ -156,6 +161,13 @@ struct User: Identifiable, Codable {
         self.currentWeekStartDate = currentWeekStartDate
         self.currentMonthStartDate = currentMonthStartDate
         self.earnedBadges = earnedBadges
+    }
+    
+    /// Force set the ID when it's missing
+    /// This is needed because DocumentID can't be set directly
+    /// - Parameter newId: The ID to set
+    mutating func forceSetId(_ newId: String) {
+        self.id = newId
     }
 }
 

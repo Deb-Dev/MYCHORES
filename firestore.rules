@@ -12,7 +12,7 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == userId;
     }
     
-    // Users collection - users can only access their own data
+    // Users collection - users can read other users' data but only update their own
     match /users/{userId} {
       // Validate user data
       function isValidUser(user) {
@@ -21,8 +21,24 @@ service cloud.firestore {
                user.email is string;
       }
       
+      // Check if update is only affecting badges or points
+      function isPointsOrBadgesUpdate() {
+        let allowedFields = ['earnedBadges', 'totalPoints', 'weeklyPoints', 'monthlyPoints', 'currentWeekStartDate', 'currentMonthStartDate'];
+        let fieldPaths = request.resource.data.diff(resource.data).affectedKeys();
+        return fieldPaths.hasOnly(allowedFields);
+      }
+      
+      // Anyone signed in can read user data
       allow read: if isSignedIn();
-      allow update, delete: if isUserAuthenticated(userId);
+      
+      // Users can update their own data, or others can update just badges and points
+      allow update: if isUserAuthenticated(userId) || 
+                      (isSignedIn() && isPointsOrBadgesUpdate());
+      
+      // Only the user can delete their account
+      allow delete: if isUserAuthenticated(userId);
+      
+      // Only the user can create their account
       allow create: if isSignedIn() && request.auth.uid == userId;
     }
     

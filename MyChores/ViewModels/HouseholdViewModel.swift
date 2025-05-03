@@ -363,24 +363,34 @@ class HouseholdViewModel: ObservableObject {
     /// Load members of a household
     /// - Parameter household: Household
     private func loadHouseholdMembers(household: Household) {
+        print("🔍 Loading household members for household: \(household.name)")
+        
         Task {
             do {
                 if !household.memberUserIds.isEmpty {
-                    let users = try await userService.fetchUsers(withIds: household.memberUserIds)
-                    let sortedMembers = household.memberUserIds.compactMap { users[$0] }
+                    // Use the more reliable method from UserService
+                    let members = try await userService.getAllHouseholdMembers(forHouseholdId: household.id ?? "")
                     
-                    DispatchQueue.main.async {
-                        self.householdMembers = sortedMembers
+                    // Debug information
+                    print("✅ Fetched \(members.count) household members")
+                    for member in members {
+                        print("👤 Member: \(member.name) (ID: \(member.id ?? "nil"), StableID: \(member.stableId))")
+                    }
+                    
+                    await MainActor.run {
+                        self.householdMembers = members
                         self.isLoading = false
                     }
                 } else {
-                    DispatchQueue.main.async {
+                    print("⚠️ Household has no members")
+                    await MainActor.run {
                         self.householdMembers = []
                         self.isLoading = false
                     }
                 }
             } catch {
-                DispatchQueue.main.async {
+                print("❌ Error loading household members: \(error.localizedDescription)")
+                await MainActor.run {
                     self.errorMessage = "Failed to load members: \(error.localizedDescription)"
                     self.isLoading = false
                 }

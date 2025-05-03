@@ -227,7 +227,7 @@ struct HouseholdView: View {
                 .foregroundColor(Theme.Colors.text)
                 .padding(.horizontal, 16)
             
-            ForEach(members) { member in
+            ForEach(members, id: \.stableId) { member in
                 memberRow(member: member)
             }
         }

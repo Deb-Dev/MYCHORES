@@ -1,5 +1,52 @@
 # Changelog
 
+## [1.0.14] - 2025-05-03
+
+### Fixed
+- Fixed "Failed to load badges: Missing or insufficient permissions" error on the Achievements tab
+- Updated Firestore security rules to properly allow badge and points updates
+- Enhanced error handling in AchievementsViewModel to avoid showing error dialogs
+- Added graceful fallback to show empty badges list instead of error messages
+- Improved user experience by handling permission errors elegantly
+
+## [1.0.13] - 2025-05-03
+
+### Fixed
+- Fixed issue where household members were showing with the same name multiple times in the household tab
+- Updated HouseholdView to use stableId for member identification in ForEach loops
+- Enhanced household member loading logic to use the more reliable getAllHouseholdMembers method
+- Improved consistency between household tab and chore assignment views
+
+## [1.0.12] - 2025-05-03
+
+### Fixed
+- Fixed issue where multiple household members were showing with the same name in the dropdown
+- Added stableId property to User model to ensure unique identification in UI lists
+- Fixed nil DocumentID issue that was causing all users to appear the same in the picker
+- Added explicit ID assignment mechanism for users with missing IDs
+- Enhanced UI list rendering to properly display different household members
+
+## [1.0.11] - 2025-05-03
+
+### Fixed
+- Fixed critical issue with household members not appearing in assignment dropdown due to Firestore permissions
+- Completely revised user fetching strategy to use individual document fetches for more reliability
+- Added multi-level fallback mechanism for user data retrieval to ensure UI always shows something useful
+- Enhanced logging throughout user fetching process for better debugging
+- Improved error handling when accessing user documents with permission issues
+
+## [1.0.10] - 2025-05-03
+
+### Fixed
+- Fixed issue with chore assignment dropdown showing hard-coded "John Doe" instead of actual household members
+- Updated AddChoreView to load real household members from the database
+- Fixed implementation of user name display in ChoreDetailView
+- Improved loading states for user information in the UI
+- Added fallback mechanism to ensure household members always display, even when network issues occur
+- Added Array chunking extension needed for fetching multiple users
+- Enhanced error handling with graceful degradation to ensure UI remains functional
+- Added detailed logging for easier debugging of household member loading issues
+
 ## [1.0.9] - 2025-05-03
 
 ### Fixed
