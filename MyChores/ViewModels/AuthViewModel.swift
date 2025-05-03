@@ -151,6 +151,11 @@ class AuthViewModel: ObservableObject {
         
         do {
             try await authService.signUp(name: name, email: email, password: password)
+            
+            // After sign up, explicitly refresh the user to ensure data is loaded
+            let refreshSuccess = await refreshCurrentUser()
+            print("User refresh after signup: \(refreshSuccess ? "success" : "failed")")
+            
             isLoading = false
             completion(true, nil)
         } catch {
@@ -176,6 +181,12 @@ class AuthViewModel: ObservableObject {
             if let updatedUser = try await authService.refreshCurrentUser() {
                 print("Successfully refreshed user")
                 self.currentUser = updatedUser
+                
+                // Ensure auth state is updated
+                if self.authState == .authenticatedButProfileIncomplete {
+                    self.authState = .authenticated
+                }
+                
                 isLoading = false
                 return true
             } else {
@@ -195,6 +206,12 @@ class AuthViewModel: ObservableObject {
                         if let createdUser = try await authService.refreshCurrentUser() {
                             print("Successfully created and fetched user")
                             self.currentUser = createdUser
+                            
+                            // Ensure auth state is updated
+                            if self.authState == .authenticatedButProfileIncomplete {
+                                self.authState = .authenticated
+                            }
+                            
                             isLoading = false
                             return true
                         }

@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.0.15] - 2025-05-03
+
+### Fixed
+- Fixed issue where users would get stuck on the loading screen after signup
+- Added explicit user refresh call after sign-up to ensure data is properly loaded
+- Enhanced refreshCurrentUser method to explicitly update auth state when user data is loaded
+- Improved LoadingView to proactively refresh user data when the loading screen appears
+- Added more aggressive refresh strategies with multiple attempts when loading stalls
+- Implemented state force transition as last resort to overcome persistent loading states
+- Reduced timeout timer from 15 to 10 seconds for better user experience
+- Fixed syntax error in MainView.swift with extra closing braces
+
 ## [1.0.14] - 2025-05-03
 
 ### Fixed

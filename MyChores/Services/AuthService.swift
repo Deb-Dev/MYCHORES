@@ -151,6 +151,13 @@ class AuthService: ObservableObject {
             // Create user document in Firestore
             try await UserService.shared.createUser(id: result.user.uid, name: name, email: email)
             
+            // Explicitly update the current user
+            if let userProfile = try await UserService.shared.fetchUser(withId: result.user.uid) {
+                DispatchQueue.main.async {
+                    self.currentUser = userProfile
+                }
+            }
+            
             print("User created: \(result.user.uid)")
         } catch {
             errorMessage = error.localizedDescription

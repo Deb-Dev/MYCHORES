@@ -16,8 +16,38 @@
             endingColumnNumber = "9223372036854775807"
             startingLineNumber = "166"
             endingLineNumber = "166"
-            landmarkName = "signOut()"
+            landmarkName = "signUp(name:email:password:)"
             landmarkType = "7">
+            <Locations>
+               <Location
+                  uuid = "9ED34E86-2449-4B3E-899B-F1D527E28E29 - ff07ad6c88b39465"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "MyChores.AuthService.signOut() throws -&gt; ()"
+                  moduleName = "MyChores.debug.dylib"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/debchow/Documents/coco/MyChores/MyChores/Services/AuthService.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "166"
+                  endingLineNumber = "166">
+               </Location>
+               <Location
+                  uuid = "9ED34E86-2449-4B3E-899B-F1D527E28E29 - bd0d4a790266030e"
+                  shouldBeEnabled = "Yes"
+                  ignoreCount = "0"
+                  continueAfterRunningActions = "No"
+                  symbolName = "(9) suspend resume partial function for MyChores.AuthService.signUp(name: Swift.String, email: Swift.String, password: Swift.String) async throws -&gt; ()"
+                  moduleName = "MyChores.debug.dylib"
+                  usesParentBreakpointCondition = "Yes"
+                  urlString = "file:///Users/debchow/Documents/coco/MyChores/MyChores/Services/AuthService.swift"
+                  startingColumnNumber = "9223372036854775807"
+                  endingColumnNumber = "9223372036854775807"
+                  startingLineNumber = "166"
+                  endingLineNumber = "166">
+               </Location>
+            </Locations>
          </BreakpointContent>
       </BreakpointProxy>
    </Breakpoints>

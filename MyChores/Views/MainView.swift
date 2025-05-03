@@ -39,7 +39,7 @@ struct LoadingView: View {
     @State private var retryCount = 0
     
     let timer = Timer.publish(every: 0.5, on: .main, in: .common).autoconnect()
-    let timeoutTimer = Timer.publish(every: 15, on: .main, in: .common).autoconnect()
+    let timeoutTimer = Timer.publish(every: 10, on: .main, in: .common).autoconnect() // Reduced from 15 to 10 seconds
     
     var body: some View {
         VStack(spacing: 24) {
@@ -104,6 +104,14 @@ struct LoadingView: View {
         .onReceive(timeoutTimer) { _ in
             isTimedOut = true
         }
+        .onAppear {
+            // Proactively try to refresh user data when the loading view appears
+            if authViewModel.authState == .authenticatedButProfileIncomplete {
+                Task {
+                    await forceRefreshUser()
+                }
+            }
+        }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Theme.Colors.background)
     }
@@ -118,13 +126,57 @@ struct LoadingView: View {
         
         // Force a refresh of auth state
         Task {
-            // This will trigger the auth state to refresh
-            if let currentUser = Auth.auth().currentUser {
-                do {
-                    try await currentUser.reload()
-                } catch {
-                    print("Error reloading user: \(error.localizedDescription)")
+            await forceRefreshUser()
+        }
+    }
+    
+    private func forceRefreshUser() async {
+        // First try to reload the Firebase user
+        if let currentUser = Auth.auth().currentUser {
+            do {
+                try await currentUser.reload()
+                
+                // Then force a refresh of the Firestore user data
+                let refreshSuccess = await authViewModel.refreshCurrentUser()
+                print("User refresh result: \(refreshSuccess ? "success" : "failed")")
+                
+                // If we still don't have a valid user, try a more aggressive approach
+                if !refreshSuccess {
+                    // Short delay to let any pending Firestore operations complete
+                    try? await Task.sleep(nanoseconds: 1_000_000_000) // 1 second
+                    
+                    // Try fetching again after the delay
+                    let delayedRefresh = await authViewModel.refreshCurrentUser()
+                    print("Delayed refresh attempt: \(delayedRefresh ? "success" : "failed")")
+                    
+                    // If still unsuccessful, try to recreate the user
+                    if !delayedRefresh, let firebaseUser = Auth.auth().currentUser {
+                        print("Trying to create user as fallback")
+                        do {
+                            try await UserService.shared.createNewUserIfNeeded(
+                                userId: firebaseUser.uid,
+                                name: firebaseUser.displayName ?? "User",
+                                email: firebaseUser.email ?? "unknown@example.com"
+                            )
+                            
+                            // Try one final refresh
+                            let finalAttempt = await authViewModel.refreshCurrentUser() 
+                            print("Final refresh attempt: \(finalAttempt ? "success" : "failed")")
+                            
+                            // If all else failed, force a state transition
+                            if !finalAttempt && authViewModel.authState == .authenticatedButProfileIncomplete {
+                                await MainActor.run {
+                                    print("Forcing state transition to authenticated")
+                                    authViewModel.authState = .authenticated
+                                }
+                            }
+                        } catch {
+                            print("Failed to create user: \(error.localizedDescription)")
+                        }
+                    }
                 }
+            } catch {
+                print("Error reloading user: \(error.localizedDescription)")
             }
         }
     }
