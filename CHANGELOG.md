@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.0.26] - 2025-05-04
+
+### Added
+- Added initial Android project structure
+- Created Android-specific README.md with project overview
+- Updated .gitignore file with Android-specific rules
+- Set up basic Android project folder structure for cross-platform development
+
 ## [1.0.25] - 2025-05-03
 
 ### Added
