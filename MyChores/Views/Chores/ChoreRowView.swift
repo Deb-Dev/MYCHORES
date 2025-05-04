@@ -2,55 +2,98 @@
 // MyChores
 //
 // Created on 2025-05-02.
+// Updated on 2025-05-03.
 //
 
 import SwiftUI
 
+// Import Theme and animated view modifiers
+import SwiftUI
+
 /// Row view for a single chore in the list
 struct ChoreRowView: View {
+    // MARK: - Properties
+    
     let chore: Chore
+    
+    // MARK: - Body
     
     var body: some View {
         HStack(spacing: 16) {
-            // Status indicator
+            // Status indicator with smooth animation
             ZStack {
+                // Background circle with smooth gradient animation
                 Circle()
-                    .fill(statusColor.opacity(0.2))
-                    .frame(width: 40, height: 40)
+                    .fill(Color.white) // Base fill for consistent appearance
+                    .frame(width: 44, height: 44)
+                    .overlay(
+                        Circle()
+                            .fill(
+                                LinearGradient(
+                                    gradient: Gradient(colors: [
+                                        statusColor.opacity(0.8),
+                                        statusColor.opacity(0.5)
+                                    ]),
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                    )
+                    .shadow(color: statusColor.opacity(0.3), radius: 3, x: 0, y: 2)
+                    .modifier(AnimatedViewModifiers.AnimatedGradient(
+                        colors: [
+                            statusColor.opacity(0.8), 
+                            statusColor.opacity(0.5)
+                        ], 
+                        duration: 5.0
+                    ))
                 
-                if chore.isCompleted {
-                    Image(systemName: "checkmark.circle.fill")
-                        .font(.system(size: 24))
-                        .foregroundColor(Theme.Colors.success)
-                } else if chore.isOverdue {
-                    Image(systemName: "exclamationmark.circle.fill")
-                        .font(.system(size: 24))
-                        .foregroundColor(Theme.Colors.error)
-                } else {
-                    Image(systemName: "circle")
-                        .font(.system(size: 24))
-                        .foregroundColor(statusColor)
+                // Status icon with appropriate animation
+                Group {
+                    if chore.isCompleted {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.system(size: 26, weight: .semibold))
+                            .foregroundColor(.white)
+                    } else if chore.isOverdue {
+                        Image(systemName: "exclamationmark.circle.fill")
+                            .font(.system(size: 26, weight: .semibold))
+                            .foregroundColor(.white)
+                            .modifier(AnimatedViewModifiers.PulseEffect(
+                                minScale: 0.95,
+                                maxScale: 1.05,
+                                duration: 1.2
+                            ))
+                    } else {
+                        Image(systemName: "circle")
+                            .font(.system(size: 26, weight: .semibold))
+                            .foregroundColor(.white)
+                    }
                 }
             }
             
-            // Chore details
-            VStack(alignment: .leading, spacing: 4) {
+            // Chore details with enhanced styling
+            VStack(alignment: .leading, spacing: 6) {
                 Text(chore.title)
-                    .font(Theme.Typography.bodyFontSystem.bold())
+                    .font(Theme.Typography.bodyFontSystem.weight(.semibold))
                     .foregroundColor(chore.isCompleted ? Theme.Colors.textSecondary : Theme.Colors.text)
                     .strikethrough(chore.isCompleted)
+                    .lineLimit(1)
                 
                 HStack(spacing: 12) {
-                    // Due date
+                    // Due date with enhanced styling
                     if let dueDate = chore.dueDate {
                         HStack(spacing: 4) {
                             Image(systemName: "calendar")
-                                .font(.system(size: 12))
+                                .font(.system(size: 12, weight: .medium))
                             
                             Text(formatDate(dueDate))
-                                .font(Theme.Typography.captionFontSystem)
+                                .font(Theme.Typography.captionFontSystem.weight(.medium))
                         }
                         .foregroundColor(dueDateColor)
+                        .padding(.vertical, 3)
+                        .padding(.horizontal, 6)
+                        .background(dueDateColor.opacity(0.1))
+                        .cornerRadius(4)
                     }
                     
                     // Points

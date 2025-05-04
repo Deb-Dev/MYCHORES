@@ -232,32 +232,396 @@ struct HouseholdOnboardingView: View {
 /// Placeholder for ProfileView implementation
 struct ProfileView: View {
     @EnvironmentObject private var authViewModel: AuthViewModel
+    @State private var showingSignOutConfirmation = false
+    @State private var isEditingProfile = false
+    @State private var editedName = ""
     
     var body: some View {
-        VStack(spacing: 24) {
-            Text("Profile View")
-                .font(Theme.Typography.headingFont)
+        ZStack {
+            Theme.Colors.background.ignoresSafeArea()
             
-            if let user = authViewModel.currentUser {
-                Text("Welcome, \(user.name)")
-                    .font(Theme.Typography.subheadingFontSystem)
+            ScrollView {
+                VStack(spacing: 32) {
+                    // Profile header with avatar and name
+                    profileHeader
+                    
+                    // Stats section
+                    statsSection
+                    
+                    // Settings section
+                    settingsSection
+                    
+                    // Sign out button
+                    signOutButton
+                        .padding(.top, 16)
+                        .padding(.bottom, 32)
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, 24)
             }
-            
-            Button("Sign Out") {
-                Task {
-                    await authViewModel.signOut { success, error in
-                        if !success {
-                            print("Sign out failed: \(error?.localizedDescription ?? "Unknown error")")
+        }
+        .sheet(isPresented: $isEditingProfile) {
+            editProfileView
+        }
+        .alert("Sign Out", isPresented: $showingSignOutConfirmation) {
+            Button("Cancel", role: .cancel) { }
+            Button("Sign Out", role: .destructive) {
+                signOut()
+            }
+        } message: {
+            Text("Are you sure you want to sign out?")
+        }
+    }
+    
+    // MARK: - Profile Header
+    
+    private var profileHeader: some View {
+        VStack(spacing: 16) {
+            // Avatar circle with initials or photo
+            ZStack {
+                Circle()
+                    .fill(Theme.Colors.primary.opacity(0.2))
+                    .frame(width: 100, height: 100)
+                
+                if let photoURL = authViewModel.currentUser?.photoURL, !photoURL.isEmpty {
+                    AsyncImage(url: URL(string: photoURL)) { phase in
+                        switch phase {
+                        case .success(let image):
+                            image
+                                .resizable()
+                                .aspectRatio(contentMode: .fill)
+                                .frame(width: 100, height: 100)
+                                .clipShape(Circle())
+                        default:
+                            Text(getInitials())
+                                .font(Theme.Typography.titleFontSystem)
+                                .foregroundColor(Theme.Colors.primary)
                         }
                     }
+                } else {
+                    Text(getInitials())
+                        .font(Theme.Typography.titleFontSystem)
+                        .foregroundColor(Theme.Colors.primary)
                 }
             }
-            .padding()
-            .background(Theme.Colors.error)
-            .foregroundColor(.white)
-            .cornerRadius(Theme.Dimensions.cornerRadiusMedium)
+            
+            // User name and email
+            if let user = authViewModel.currentUser {
+                Text(user.name)
+                    .font(Theme.Typography.headingFontSystem)
+                    .foregroundColor(Theme.Colors.text)
+                
+                Text(user.email)
+                    .font(Theme.Typography.captionFontSystem)
+                    .foregroundColor(Theme.Colors.textSecondary)
+            }
+            
+            // Edit profile button
+            Button {
+                if let user = authViewModel.currentUser {
+                    editedName = user.name
+                }
+                isEditingProfile = true
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "pencil")
+                    Text("Edit Profile")
+                }
+                .font(Theme.Typography.bodyFontSystem)
+                .foregroundColor(Theme.Colors.primary)
+                .padding(.vertical, 8)
+                .padding(.horizontal, 20)
+                .background(
+                    RoundedRectangle(cornerRadius: Theme.Dimensions.cornerRadiusMedium)
+                        .stroke(Theme.Colors.primary, lineWidth: 1)
+                )
+            }
         }
-        .padding()
+        .padding(.vertical, 16)
+        .padding(.horizontal, 20)
+        .background(Theme.Colors.cardBackground)
+        .cornerRadius(Theme.Dimensions.cornerRadiusMedium)
+        .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
+    }
+    
+    // MARK: - Stats Section
+    
+    private var statsSection: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Your Statistics")
+                .font(Theme.Typography.subheadingFontSystem)
+                .foregroundColor(Theme.Colors.text)
+            
+            LazyVGrid(columns: [
+                GridItem(.flexible()),
+                GridItem(.flexible())
+            ], spacing: 12) {
+                if let user = authViewModel.currentUser {
+                    statCard(
+                        value: "\(user.totalPoints)",
+                        label: "Total Points",
+                        icon: "star.fill",
+                        color: Theme.Colors.primary
+                    )
+                    
+                    statCard(
+                        value: "\(user.earnedBadges.count)",
+                        label: "Badges Earned",
+                        icon: "rosette",
+                        color: Theme.Colors.accent
+                    )
+                    
+                    statCard(
+                        value: "\(user.householdIds.count)",
+                        label: "Households",
+                        icon: "house.fill",
+                        color: Theme.Colors.secondary
+                    )
+                    
+                    statCard(
+                        value: calculateMemberSince(),
+                        label: "Member Since",
+                        icon: "calendar",
+                        color: Theme.Colors.success
+                    )
+                }
+            }
+        }
+        .padding(20)
+        .background(Theme.Colors.cardBackground)
+        .cornerRadius(Theme.Dimensions.cornerRadiusMedium)
+        .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
+    }
+    
+    // MARK: - Settings Section
+    
+    private var settingsSection: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("Settings")
+                .font(Theme.Typography.subheadingFontSystem)
+                .foregroundColor(Theme.Colors.text)
+            
+            VStack(spacing: 0) {
+                settingRow(icon: "bell.fill", title: "Notifications", action: {
+                    // Open notification settings
+                })
+                
+                Divider()
+                    .padding(.leading, 56)
+                
+                settingRow(icon: "lock.fill", title: "Privacy", action: {
+                    // Open privacy settings
+                })
+                
+                Divider()
+                    .padding(.leading, 56)
+                
+                settingRow(icon: "questionmark.circle.fill", title: "Help & Support", action: {
+                    // Open help
+                })
+                
+                Divider()
+                    .padding(.leading, 56)
+                
+                settingRow(icon: "info.circle.fill", title: "About", action: {
+                    // Show about info
+                })
+            }
+        }
+        .padding(20)
+        .background(Theme.Colors.cardBackground)
+        .cornerRadius(Theme.Dimensions.cornerRadiusMedium)
+        .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
+    }
+    
+    // MARK: - Sign Out Button
+    
+    private var signOutButton: some View {
+        Button {
+            showingSignOutConfirmation = true
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: "arrow.right.square.fill")
+                Text("Sign Out")
+            }
+            .font(Theme.Typography.bodyFontSystem.weight(.medium))
+            .foregroundColor(.white)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 16)
+            .background(
+                LinearGradient(
+                    colors: [Theme.Colors.error, Theme.Colors.error.opacity(0.8)],
+                    startPoint: .leading,
+                    endPoint: .trailing
+                )
+            )
+            .cornerRadius(Theme.Dimensions.cornerRadiusMedium)
+            .shadow(color: Theme.Colors.error.opacity(0.3), radius: 5, x: 0, y: 2)
+        }
+    }
+    
+    // MARK: - Edit Profile View
+    
+    private var editProfileView: some View {
+        NavigationStack {
+            ZStack {
+                Theme.Colors.background.ignoresSafeArea()
+                
+                VStack(spacing: 24) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Display Name")
+                            .font(Theme.Typography.captionFontSystem)
+                            .foregroundColor(Theme.Colors.textSecondary)
+                        
+                        TextField("Enter your name", text: $editedName)
+                            .font(Theme.Typography.bodyFontSystem)
+                            .padding()
+                            .background(Theme.Colors.cardBackground)
+                            .cornerRadius(Theme.Dimensions.cornerRadiusSmall)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: Theme.Dimensions.cornerRadiusSmall)
+                                    .stroke(Theme.Colors.textSecondary.opacity(0.3), lineWidth: 1)
+                            )
+                    }
+                    
+                    // Future: Add photo upload option
+                    
+                    Spacer()
+                }
+                .padding()
+            }
+            .navigationTitle("Edit Profile")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") {
+                        isEditingProfile = false
+                    }
+                }
+                
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        saveProfile()
+                    }
+                    .disabled(editedName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+            }
+        }
+    }
+    
+    // MARK: - Helper Views
+    
+    private func statCard(value: String, label: String, icon: String, color: Color) -> some View {
+        HStack(spacing: 12) {
+            Image(systemName: icon)
+                .font(.system(size: 24))
+                .foregroundColor(color)
+                .frame(width: 40, height: 40)
+                .background(color.opacity(0.2))
+                .clipShape(RoundedRectangle(cornerRadius: Theme.Dimensions.cornerRadiusSmall))
+            
+            VStack(alignment: .leading, spacing: 4) {
+                Text(value)
+                    .font(Theme.Typography.subheadingFontSystem)
+                    .foregroundColor(Theme.Colors.text)
+                
+                Text(label)
+                    .font(Theme.Typography.captionFontSystem)
+                    .foregroundColor(Theme.Colors.textSecondary)
+            }
+            
+            Spacer()
+        }
+        .padding(.vertical, 8)
+        .padding(.horizontal, 12)
+        .background(Theme.Colors.cardBackground)
+        .cornerRadius(Theme.Dimensions.cornerRadiusSmall)
+        .overlay(
+            RoundedRectangle(cornerRadius: Theme.Dimensions.cornerRadiusSmall)
+                .stroke(Color.gray.opacity(0.1), lineWidth: 1)
+        )
+    }
+    
+    private func settingRow(icon: String, title: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 16) {
+                Image(systemName: icon)
+                    .font(.system(size: 20))
+                    .foregroundColor(Theme.Colors.primary)
+                    .frame(width: 40)
+                
+                Text(title)
+                    .font(Theme.Typography.bodyFontSystem)
+                    .foregroundColor(Theme.Colors.text)
+                
+                Spacer()
+                
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 14, weight: .medium))
+                    .foregroundColor(Theme.Colors.textSecondary)
+            }
+            .padding(.vertical, 16)
+        }
+    }
+    
+    // MARK: - Helper Methods
+    
+    private func getInitials() -> String {
+        guard let name = authViewModel.currentUser?.name else { return "?" }
+        
+        let components = name.components(separatedBy: " ")
+        if components.count > 1,
+           let first = components.first?.first,
+           let last = components.last?.first {
+            return String(first) + String(last)
+        } else if let first = components.first?.first {
+            return String(first)
+        }
+        
+        return "?"
+    }
+    
+    private func calculateMemberSince() -> String {
+        guard let createdAt = authViewModel.currentUser?.createdAt else { return "N/A" }
+        
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MMM yyyy"
+        return formatter.string(from: createdAt)
+    }
+    
+    private func signOut() {
+        Task {
+            await authViewModel.signOut { success, error in
+                if !success {
+                    print("Sign out failed: \(error?.localizedDescription ?? "Unknown error")")
+                }
+            }
+        }
+    }
+    
+    private func saveProfile() {
+        guard !editedName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              let userId = authViewModel.currentUser?.id else {
+            isEditingProfile = false
+            return
+        }
+        
+        // Update user's name in Firestore
+        let db = Firestore.firestore()
+        db.collection("users").document(userId).updateData([
+            "name": editedName.trimmingCharacters(in: .whitespacesAndNewlines)
+        ]) { error in
+            if let error = error {
+                print("Error updating profile: \(error.localizedDescription)")
+            } else {
+                // Refresh current user to get updated data
+                Task {
+                    await authViewModel.refreshCurrentUser()
+                }
+            }
+        }
+        
+        isEditingProfile = false
     }
 }
 

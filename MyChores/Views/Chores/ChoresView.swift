@@ -97,7 +97,7 @@ struct ChoresView: View {
         if viewModel.isLoading && viewModel.chores.isEmpty {
             loadingView
         } else if viewModel.filteredChores.isEmpty {
-            EmptyStateView(filterMode: viewModel.filterMode, onAddTapped: {
+            EmptyStateFactory.forChoresFilter(filterMode: filterModeString, onAddTapped: {
                 showingAddChore = true
             })
         } else {
@@ -105,6 +105,11 @@ struct ChoresView: View {
                 showingChoreDetail = chore
             }
         }
+    }
+    
+    // Convert the filter mode to a string for the EmptyStateFactory
+    private var filterModeString: String {
+        return viewModel.filterMode.rawValue
     }
     
     // MARK: - UI Components

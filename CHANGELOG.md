@@ -1,5 +1,50 @@
 # Changelog
 
+## [1.0.23] - 2025-05-03
+
+### Fixed
+- Fixed jerky animation in ChoreRowView status indicators
+  - Implemented smoother gradient transitions
+  - Improved animation timing for a more polished experience
+  - Applied consistent animation patterns across all interactive elements
+
+## [1.0.22] - 2025-05-03
+
+### Added
+- Created advanced AnimatedView component with multiple animation modifiers:
+  - Pulse, shimmer, floating, badge bounce, slide in, and gradient animations
+  - Consistent API for applying animations throughout the app
+- Enhanced EmptyStateView with beautiful layouts and factory methods
+  - Added specialized empty states for different scenarios (chores, leaderboard, achievements)
+  - Implemented animated elements and better visual hierarchy
+
+### Improved
+- Enhanced ChoreRowView with modern design elements:
+  - Added animated gradient backgrounds to status indicators
+  - Created visual badges for metadata (due date, points, recurrence)
+  - Improved typography with better font weights and spacing
+  - Added subtle animations to make the interface more engaging
+- Updated CardView component with new features:
+  - Added support for leading accent borders
+  - Improved shadow effects for better depth perception
+  - Added animation capabilities for interactive card elements
+
+## [1.0.21] - 2025-05-03
+
+### Improved
+- Major UI enhancement for the Profile view with beautiful, modern design
+- Added user statistics cards showing points, badges, and membership details
+- Implemented settings section with navigational items
+- Created profile editing functionality with proper form validation
+- Added user avatar display with initials fallback when no profile photo exists
+- Enhanced sign out experience with confirmation dialog
+
+## [1.0.20] - 2025-05-03
+
+### Added
+- Created comprehensive system design document (SYSTEM_DESIGN.md) to serve as a reference for future development
+- Document includes architecture overview, database design, key workflows, and extensibility points
+
 ## [1.0.19] - 2025-05-03
 
 ### Fixed
