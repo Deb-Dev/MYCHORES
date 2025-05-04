@@ -8,7 +8,7 @@ import Foundation
 import FirebaseFirestore
 
 /// Represents a chore task within a household
-struct Chore: Identifiable, Codable {
+struct Chore: Identifiable, Codable, Equatable {
     /// Unique identifier for the chore
     @DocumentID var id: String?
     
@@ -169,6 +169,22 @@ struct Chore: Identifiable, Codable {
         newChore.createdAt = Date()
         
         return newChore
+    }
+    
+    // MARK: - Equatable
+    
+    static func == (lhs: Chore, rhs: Chore) -> Bool {
+        // If both have IDs, compare IDs
+        if let lhsId = lhs.id, let rhsId = rhs.id {
+            return lhsId == rhsId
+        }
+        
+        // Otherwise compare critical properties
+        return lhs.title == rhs.title &&
+            lhs.householdId == rhs.householdId &&
+            lhs.assignedToUserId == rhs.assignedToUserId &&
+            lhs.dueDate == rhs.dueDate &&
+            lhs.isCompleted == rhs.isCompleted
     }
 }
 

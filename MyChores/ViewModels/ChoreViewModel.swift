@@ -144,6 +144,22 @@ class ChoreViewModel: ObservableObject {
         }
     }
     
+    /// Load all chores for the current household (async version)
+    @MainActor
+    func loadChoresAsync() async {
+        isLoading = true
+        errorMessage = nil
+        
+        do {
+            let fetchedChores = try await choreService.fetchChores(forHouseholdId: householdId)
+            self.chores = fetchedChores
+            self.isLoading = false
+        } catch {
+            self.errorMessage = "Failed to load chores: \(error.localizedDescription)"
+            self.isLoading = false
+        }
+    }
+    
     /// Load a specific chore
     /// - Parameter id: Chore ID
     func loadChore(id: String) {

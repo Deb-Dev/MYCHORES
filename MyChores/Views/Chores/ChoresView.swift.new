@@ -72,19 +72,19 @@ struct ChoresView: View {
         }
         .onChange(of: viewModel.pointsEarnedMessage) { newValue in
             if let message = newValue {
-                toastManager.show(ToastManager.ToastType.points(message))
+                toastManager.show(.points(message))
                 viewModel.pointsEarnedMessage = nil
             }
         }
         .onChange(of: viewModel.badgeEarnedMessage) { newValue in
             if let message = newValue {
-                toastManager.show(ToastManager.ToastType.badge(message))
+                toastManager.show(.badge(message))
                 viewModel.badgeEarnedMessage = nil
             }
         }
         .onChange(of: viewModel.errorMessage) { newValue in
             if let message = newValue {
-                toastManager.show(ToastManager.ToastType.error(message))
+                toastManager.show(.error(message))
                 viewModel.errorMessage = nil
             }
         }
@@ -128,8 +128,8 @@ struct ChoresView: View {
         isRefreshing = false
     }
 }
-// MARK: - Date Extension
 
+// MARK: - Preview
 
 #Preview {
     ChoresView(householdId: "sample_household_id")

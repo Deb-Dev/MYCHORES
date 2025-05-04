@@ -5,6 +5,7 @@
 //
 
 import SwiftUI
+import UIKit
 
 /// Theme defines the app's color palette and typography
 struct Theme {
@@ -20,6 +21,12 @@ struct Theme {
         static let textSecondary = Color("TextSecondary") // Medium gray: #6C757D
         static let success = Color("Success") // Green: #43AA8B
         static let error = Color("Error") // Red: #F94144
+        
+        // System UI color adaptations
+        static var systemBackground: Color { Color(UIColor.systemBackground) }
+        static var systemFill: Color { Color(UIColor.systemFill) }
+        static var label: Color { Color(UIColor.label) }
+        static var secondaryLabel: Color { Color(UIColor.secondaryLabel) }
     }
     
     // MARK: - Typography

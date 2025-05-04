@@ -1,5 +1,39 @@
 # Changelog
 
+## [1.0.19] - 2025-05-03
+
+### Fixed
+- Fixed compiler error: "Referencing instance method 'animation(_:value:)' on 'Array' requires that 'Chore' conform to 'Equatable'"
+- Added Equatable conformance to the Chore model to support animations in ChoreListView
+- Implemented custom equality comparison for Chore objects based on ID and critical properties
+
+## [1.0.18] - 2025-05-03
+
+### Fixed
+- Fixed critical compiler error in ChoresView.swift: "Closure containing a declaration cannot be used with result builder ViewBuilder"
+- Restructured view components to follow proper SwiftUI patterns
+- Replaced `.onChange` modifiers with `.onReceive` for better compatibility 
+- Ensured computed properties and methods are correctly placed outside the body property
+- Fixed toast message handling to use the proper ToastManager API
+
+## [1.0.17] - 2025-05-03
+
+### Fixed
+- Fixed structural issues in ChoresView.swift that were causing compiler errors
+- Corrected ToastManager implementation with proper view hierarchy
+- Removed redundant closing braces that broke the view structure
+
+## [1.0.16] - 2025-05-03
+
+### Improved
+- Refactored ChoresView.swift to improve maintainability and reduce complexity
+- Created ToastManager component for centralized toast message handling
+- Added ChoreListView as a dedicated component for better separation of concerns
+- Consolidated Theme system extensions into Theme.swift for better organization 
+- Created DateExtensions.swift to centralize date-related utilities
+- Implemented async/await pattern in ChoresView and ChoreViewModel for better concurrency
+- Reduced potential for compiler bottlenecks with simpler, more modular code structure
+
 ## [1.0.15] - 2025-05-03
 
 ### Fixed
