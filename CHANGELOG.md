@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.0.25] - 2025-05-03
+
+### Added
+- Set up GitHub repository for the project
+- Created comprehensive README.md with project overview and setup instructions
+- Implemented detailed .gitignore file with Swift-specific rules
+- Prepared project for public release and collaboration
+
 ## [1.0.24] - 2025-05-03
 
 ### Added
