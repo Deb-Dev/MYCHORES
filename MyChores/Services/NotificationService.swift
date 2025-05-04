@@ -45,6 +45,11 @@ class NotificationService {
         }
     }
     
+    /// Wrapper for requestNotificationPermission to maintain consistent naming
+    func requestAuthorization() {
+        requestNotificationPermission()
+    }
+    
     /// Schedule a reminder for a chore
     /// - Parameters:
     ///   - choreId: Chore ID
@@ -205,6 +210,117 @@ class NotificationService {
         functions.httpsCallable("scheduleChoreReminder").call(data) { result, error in
             if let error = error {
                 print("Error scheduling server reminder: \(error.localizedDescription)")
+            }
+        }
+    }
+    
+    // MARK: - Settings Methods
+    
+    /// Updates the notification settings for the current user
+    /// - Parameters:
+    ///   - dueReminders: Whether to send reminders for due dates
+    ///   - assignmentReminders: Whether to send notifications for new chore assignments
+    ///   - achievementReminders: Whether to send notifications for earned badges
+    ///   - reminderLeadTime: How many hours before the due date to send a reminder
+    func updateNotificationSettings(
+        dueReminders: Bool,
+        assignmentReminders: Bool,
+        achievementReminders: Bool,
+        reminderLeadTime: Int
+    ) {
+        // Store settings in UserDefaults for local reference
+        UserDefaults.standard.set(dueReminders, forKey: "dueRemindersEnabled")
+        UserDefaults.standard.set(assignmentReminders, forKey: "assignmentRemindersEnabled")
+        UserDefaults.standard.set(achievementReminders, forKey: "achievementRemindersEnabled")
+        UserDefaults.standard.set(reminderLeadTime, forKey: "reminderLeadTime")
+        
+        // Check for notification permissions
+        UNUserNotificationCenter.current().getNotificationSettings { settings in
+            switch settings.authorizationStatus {
+            case .authorized, .provisional:
+                // Re-schedule notifications based on the new settings
+                if dueReminders {
+                    self.scheduleChoreReminders(leadTimeHours: reminderLeadTime)
+                } else {
+                    self.cancelAllChoreReminders()
+                }
+                
+            case .denied:
+                print("Notification permissions denied. Prompting user to enable in settings")
+                
+            case .notDetermined:
+                self.requestAuthorization()
+                
+            case .ephemeral:
+                // Handle ephemeral notifications
+                break
+                
+            @unknown default:
+                break
+            }
+        }
+    }
+    
+    /// Cancel all scheduled chore reminders
+    private func cancelAllChoreReminders() {
+        let center = UNUserNotificationCenter.current()
+        center.removeAllPendingNotificationRequests()
+    }
+    
+    /// Schedule reminders for pending chores
+    private func scheduleChoreReminders(leadTimeHours: Int) {
+        // This would fetch pending chores and schedule notifications
+        // For now, we'll just use sample data
+        let sampleChores = [
+            (id: "1", title: "Take out trash", dueDate: Date().addingTimeInterval(60*60*3)),
+            (id: "2", title: "Clean kitchen", dueDate: Date().addingTimeInterval(60*60*24))
+        ]
+        
+        for chore in sampleChores {
+            let reminderDate = leadTimeHours > 0 
+                ? chore.dueDate.addingTimeInterval(-Double(leadTimeHours) * 3600) 
+                : chore.dueDate
+            
+            if reminderDate > Date() {
+                scheduleLocalNotification(
+                    id: chore.id,
+                    title: chore.title,
+                    date: reminderDate,
+                    leadTimeHours: leadTimeHours
+                )
+            }
+        }
+    }
+    
+    /// Schedule a local notification
+    private func scheduleLocalNotification(id: String, title: String, date: Date, leadTimeHours: Int) {
+        let content = UNMutableNotificationContent()
+        
+        // Create appropriate title and message based on the lead time
+        if leadTimeHours > 0 {
+            content.title = "Upcoming Chore Reminder"
+            content.body = "'\(title)' is due in \(leadTimeHours) hour\(leadTimeHours > 1 ? "s" : "")"
+        } else {
+            content.title = "Chore Due Now"
+            content.body = "'\(title)' is due right now"
+        }
+        
+        content.sound = UNNotificationSound.default
+        content.userInfo = ["choreId": id]
+        
+        // Create the trigger
+        let calendar = Calendar.current
+        let components = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: date)
+        let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
+        
+        // Create the request
+        let identifier = "chore-reminder-\(id)"
+        let request = UNNotificationRequest(identifier: identifier, content: content, trigger: trigger)
+        
+        // Schedule the notification
+        UNUserNotificationCenter.current().add(request) { error in
+            if let error = error {
+                print("Error scheduling chore reminder: \(error.localizedDescription)")
             }
         }
     }

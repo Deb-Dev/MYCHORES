@@ -476,6 +476,91 @@ class UserService {
             }
         }
     }
+    
+    // MARK: - Privacy Settings
+    
+    /// Update user's privacy settings
+    /// - Parameters:
+    ///   - showProfile: Whether to share profile with other household members
+    ///   - showAchievements: Whether to display achievements to other household members
+    ///   - shareActivity: Whether to share activity history with household members
+    /// - Returns: Success flag and optional error
+    @MainActor
+    func updatePrivacySettings(
+        showProfile: Bool,
+        showAchievements: Bool,
+        shareActivity: Bool
+    ) async {
+        guard let userId = Auth.auth().currentUser?.uid else {
+            print("No authenticated user found to update privacy settings")
+            return
+        }
+        
+        do {
+            // Update the user document with privacy settings
+            try await db.collection("users").document(userId).updateData([
+                "privacySettings": [
+                    "showProfile": showProfile,
+                    "showAchievements": showAchievements,
+                    "shareActivity": shareActivity
+                ]
+            ])
+            
+            // Update the user model with the new settings
+            var userToUpdate = await getCurrentUser()
+            if var user = userToUpdate {
+                user.privacySettings = UserPrivacySettings(
+                    showProfile: showProfile,
+                    showAchievements: showAchievements,
+                    shareActivity: shareActivity
+                )
+                
+                // Store updated user in UserDefaults
+                if let encodedUser = try? JSONEncoder().encode(user) {
+                    UserDefaults.standard.set(encodedUser, forKey: "currentUser")
+                }
+            }
+            
+            print("Privacy settings updated successfully")
+        } catch {
+            print("Error updating privacy settings: \(error.localizedDescription)")
+        }
+    }
+    
+    /// Get the current authenticated user
+    /// - Returns: Current user object if available, nil otherwise
+    @MainActor
+    func getCurrentUser() async -> User? {
+        // First check if we have a cached user in UserDefaults
+        if let userData = UserDefaults.standard.data(forKey: "currentUser") {
+            do {
+                let cachedUser = try JSONDecoder().decode(User.self, from: userData)
+                return cachedUser
+            } catch {
+                print("Error decoding cached user: \(error.localizedDescription)")
+                // Fall through to try fetching from Firestore
+            }
+        }
+        
+        // If no cached user or decoding failed, try to fetch from Firestore
+        guard let userId = Auth.auth().currentUser?.uid else {
+            return nil
+        }
+        
+        do {
+            let user = try await fetchUser(withId: userId)
+            
+            // Cache the user in UserDefaults for future use
+            if let user = user, let encodedUser = try? JSONEncoder().encode(user) {
+                UserDefaults.standard.set(encodedUser, forKey: "currentUser")
+            }
+            
+            return user
+        } catch {
+            print("Error fetching current user: \(error.localizedDescription)")
+            return nil
+        }
+    }
 }
 
 // MARK: - Array Extension for Chunking

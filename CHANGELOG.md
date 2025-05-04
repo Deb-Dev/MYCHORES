@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.0.24] - 2025-05-03
+
+### Added
+- Implemented fully functional settings section in the Profile view:
+  - Added Notification settings with customizable reminder preferences
+  - Created Privacy settings for controlling data visibility
+  - Implemented Help & Support section with FAQ and feedback form
+  - Added About section with app information and legal links
+- Created UserPrivacySettings model for privacy preference management
+- Added support for persisting user settings with UserDefaults
+- Implemented NotificationService methods to handle notification preferences
+- Added privacy settings management to UserService
+
+### Fixed
+- Fixed compilation error in ProfileView by implementing loadUserSettings() function
+- Added synchronization of user privacy settings between Firestore and local storage
+
 ## [1.0.23] - 2025-05-03
 
 ### Fixed

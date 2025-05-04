@@ -53,6 +53,9 @@ struct User: Identifiable, Codable {
     /// List of badges earned by the user
     var earnedBadges: [String] = []
     
+    /// User's privacy settings
+    var privacySettings: UserPrivacySettings = UserPrivacySettings()
+    
     /// Custom CodingKeys to match Firestore field names
     enum CodingKeys: String, CodingKey {
         case id
@@ -68,6 +71,7 @@ struct User: Identifiable, Codable {
         case currentWeekStartDate
         case currentMonthStartDate
         case earnedBadges
+        case privacySettings
     }
     
     /// Custom initializer to handle potential issues with missing data
@@ -130,6 +134,14 @@ struct User: Identifiable, Codable {
             monthlyPoints = 0
             print("Warning: monthlyPoints not found, defaulting to 0")
         }
+        
+        // Privacy settings
+        do {
+            privacySettings = try container.decode(UserPrivacySettings.self, forKey: .privacySettings)
+        } catch {
+            privacySettings = UserPrivacySettings()
+            print("Warning: privacySettings not found, defaulting to default settings")
+        }
     }
     
     /// Standard initializer
@@ -146,7 +158,8 @@ struct User: Identifiable, Codable {
         monthlyPoints: Int = 0,
         currentWeekStartDate: Date? = nil,
         currentMonthStartDate: Date? = nil,
-        earnedBadges: [String] = []
+        earnedBadges: [String] = [],
+        privacySettings: UserPrivacySettings = UserPrivacySettings()
     ) {
         self.id = id
         self.name = name
@@ -161,6 +174,7 @@ struct User: Identifiable, Codable {
         self.currentWeekStartDate = currentWeekStartDate
         self.currentMonthStartDate = currentMonthStartDate
         self.earnedBadges = earnedBadges
+        self.privacySettings = privacySettings
     }
     
     /// Force set the ID when it's missing
@@ -169,6 +183,18 @@ struct User: Identifiable, Codable {
     mutating func forceSetId(_ newId: String) {
         self.id = newId
     }
+}
+
+/// Privacy settings for a user
+struct UserPrivacySettings: Codable {
+    /// Whether to share profile with household members
+    var showProfile: Bool = true
+    
+    /// Whether to display achievements to household members
+    var showAchievements: Bool = true
+    
+    /// Whether to share activity history with household members
+    var shareActivity: Bool = true
 }
 
 // MARK: - Sample Data
@@ -187,6 +213,7 @@ extension User {
         monthlyPoints: 75,
         currentWeekStartDate: Calendar.current.date(from: Calendar.current.dateComponents([.yearForWeekOfYear, .weekOfYear], from: Date())),
         currentMonthStartDate: Calendar.current.date(from: Calendar.current.dateComponents([.year, .month], from: Date())),
-        earnedBadges: ["first_chore", "ten_chores"]
+        earnedBadges: ["first_chore", "ten_chores"],
+        privacySettings: UserPrivacySettings(showProfile: true, showAchievements: true, shareActivity: true)
     )
 }

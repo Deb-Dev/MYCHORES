@@ -236,6 +236,12 @@ struct ProfileView: View {
     @State private var isEditingProfile = false
     @State private var editedName = ""
     
+    // Settings navigation state
+    @State private var showingNotificationSettings = false
+    @State private var showingPrivacySettings = false
+    @State private var showingHelpSupport = false
+    @State private var showingAbout = false
+    
     var body: some View {
         ZStack {
             Theme.Colors.background.ignoresSafeArea()
@@ -263,6 +269,18 @@ struct ProfileView: View {
         .sheet(isPresented: $isEditingProfile) {
             editProfileView
         }
+        .sheet(isPresented: $showingNotificationSettings) {
+            NotificationSettingsView()
+        }
+        .sheet(isPresented: $showingPrivacySettings) {
+            PrivacySettingsView()
+        }
+        .sheet(isPresented: $showingHelpSupport) {
+            HelpSupportView()
+        }
+        .sheet(isPresented: $showingAbout) {
+            AboutView()
+        }
         .alert("Sign Out", isPresented: $showingSignOutConfirmation) {
             Button("Cancel", role: .cancel) { }
             Button("Sign Out", role: .destructive) {
@@ -270,6 +288,30 @@ struct ProfileView: View {
             }
         } message: {
             Text("Are you sure you want to sign out?")
+        }
+        .onAppear {
+            // Load any user-specific settings when the profile view appears
+            loadUserSettings()
+        }
+    }
+    
+    // MARK: - User Settings
+    
+    private func loadUserSettings() {
+        // This method loads all user settings from UserDefaults and other sources
+        // Can be extended to load from Firestore or other remote sources if needed
+        
+        // If the user has privacy settings in their User object, we should sync those first
+        Task {
+            if let user = await UserService.shared.getCurrentUser() {
+                // Sync privacy settings from user model to UserDefaults if they exist
+                UserDefaults.standard.set(user.privacySettings.showProfile, 
+                                         forKey: "showProfileToOthers")
+                UserDefaults.standard.set(user.privacySettings.showAchievements, 
+                                         forKey: "showAchievementsToOthers")
+                UserDefaults.standard.set(user.privacySettings.shareActivity, 
+                                         forKey: "shareActivityWithHousehold")
+            }
         }
     }
     
@@ -404,6 +446,7 @@ struct ProfileView: View {
             VStack(spacing: 0) {
                 settingRow(icon: "bell.fill", title: "Notifications", action: {
                     // Open notification settings
+                    showingNotificationSettings = true
                 })
                 
                 Divider()
@@ -411,6 +454,7 @@ struct ProfileView: View {
                 
                 settingRow(icon: "lock.fill", title: "Privacy", action: {
                     // Open privacy settings
+                    showingPrivacySettings = true
                 })
                 
                 Divider()
@@ -418,6 +462,7 @@ struct ProfileView: View {
                 
                 settingRow(icon: "questionmark.circle.fill", title: "Help & Support", action: {
                     // Open help
+                    showingHelpSupport = true
                 })
                 
                 Divider()
@@ -425,6 +470,7 @@ struct ProfileView: View {
                 
                 settingRow(icon: "info.circle.fill", title: "About", action: {
                     // Show about info
+                    showingAbout = true
                 })
             }
         }
@@ -432,6 +478,18 @@ struct ProfileView: View {
         .background(Theme.Colors.cardBackground)
         .cornerRadius(Theme.Dimensions.cornerRadiusMedium)
         .shadow(color: Color.black.opacity(0.05), radius: 5, x: 0, y: 2)
+        .sheet(isPresented: $showingNotificationSettings) {
+            NotificationSettingsView()
+        }
+        .sheet(isPresented: $showingPrivacySettings) {
+            PrivacySettingsView()
+        }
+        .sheet(isPresented: $showingHelpSupport) {
+            HelpSupportView()
+        }
+        .sheet(isPresented: $showingAbout) {
+            AboutView()
+        }
     }
     
     // MARK: - Sign Out Button
@@ -912,6 +970,514 @@ struct JoinHouseholdView: View {
             inviteCode = value.uppercased()
         }
     }
+}
+
+// MARK: - Settings Views
+
+/// Notification settings view
+struct NotificationSettingsView: View {
+    @Environment(\.dismiss) private var dismiss
+    @State private var dueRemindersEnabled = UserDefaults.standard.bool(forKey: "dueRemindersEnabled") 
+    @State private var assignmentRemindersEnabled = UserDefaults.standard.bool(forKey: "assignmentRemindersEnabled")
+    @State private var achievementRemindersEnabled = UserDefaults.standard.bool(forKey: "achievementRemindersEnabled")
+    @State private var reminderLeadTime = UserDefaults.standard.integer(forKey: "reminderLeadTime")
+    
+    init() {
+        // Set defaults if no values are in UserDefaults
+        if !UserDefaults.standard.contains(key: "dueRemindersEnabled") {
+            _dueRemindersEnabled = State(initialValue: true)
+        }
+        
+        if !UserDefaults.standard.contains(key: "assignmentRemindersEnabled") {
+            _assignmentRemindersEnabled = State(initialValue: true)
+        }
+        
+        if !UserDefaults.standard.contains(key: "achievementRemindersEnabled") {
+            _achievementRemindersEnabled = State(initialValue: true)
+        }
+        
+        if !UserDefaults.standard.contains(key: "reminderLeadTime") {
+            _reminderLeadTime = State(initialValue: 1)
+        }
+    }
+    
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                Theme.Colors.background.ignoresSafeArea()
+                
+                List {
+                    Section {
+                        Toggle("Due Date Reminders", isOn: $dueRemindersEnabled)
+                            .tint(Theme.Colors.primary)
+                        
+                        if dueRemindersEnabled {
+                            Picker("Remind Me", selection: $reminderLeadTime) {
+                                Text("At Due Time").tag(0)
+                                Text("1 Hour Before").tag(1)
+                                Text("3 Hours Before").tag(3)
+                                Text("1 Day Before").tag(24)
+                            }
+                        }
+                    } header: {
+                        Text("Chore Reminders")
+                    } footer: {
+                        Text("Receive notifications when your chores are approaching their due date.")
+                    }
+                    
+                    Section {
+                        Toggle("Assignment Notifications", isOn: $assignmentRemindersEnabled)
+                            .tint(Theme.Colors.primary)
+                        
+                        Toggle("Achievement Notifications", isOn: $achievementRemindersEnabled)
+                            .tint(Theme.Colors.primary)
+                    } header: {
+                        Text("Other Notifications")
+                    } footer: {
+                        Text("Get notified when you're assigned new chores or earn achievements.")
+                    }
+                    
+                    Section {
+                        Button {
+                            if let appSettings = URL(string: UIApplication.openSettingsURLString) {
+                                UIApplication.shared.open(appSettings)
+                            }
+                        } label: {
+                            HStack {
+                                Text("iOS Notification Settings")
+                                    .foregroundStyle(.red)
+                                Spacer()
+                                Image(systemName: "arrow.up.forward.app")
+                                    .foregroundStyle(.red)
+                            }
+                        }
+                    } footer: {
+                        Text("Manage all app permissions in iOS Settings.")
+                    }
+                }
+                .navigationTitle("Notifications")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button("Done") {
+                            saveNotificationSettings()
+                            dismiss()
+                        }
+                    }
+                }
+                .onAppear {
+                    loadNotificationSettings()
+                }
+            }
+        }
+    }
+    
+    private func saveNotificationSettings() {
+        // Save notification settings to UserDefaults
+        UserDefaults.standard.set(dueRemindersEnabled, forKey: "dueRemindersEnabled")
+        UserDefaults.standard.set(assignmentRemindersEnabled, forKey: "assignmentRemindersEnabled")
+        UserDefaults.standard.set(achievementRemindersEnabled, forKey: "achievementRemindersEnabled")
+        UserDefaults.standard.set(reminderLeadTime, forKey: "reminderLeadTime")
+        
+        // Here we would also update notification permissions and scheduling logic
+        NotificationService.shared.updateNotificationSettings(
+            dueReminders: dueRemindersEnabled,
+            assignmentReminders: assignmentRemindersEnabled,
+            achievementReminders: achievementRemindersEnabled,
+            reminderLeadTime: reminderLeadTime
+        )
+    }
+    
+    private func loadNotificationSettings() {
+        // Load notification settings from UserDefaults
+        dueRemindersEnabled = UserDefaults.standard.bool(forKey: "dueRemindersEnabled")
+        assignmentRemindersEnabled = UserDefaults.standard.bool(forKey: "assignmentRemindersEnabled")
+        achievementRemindersEnabled = UserDefaults.standard.bool(forKey: "achievementRemindersEnabled")
+        reminderLeadTime = UserDefaults.standard.integer(forKey: "reminderLeadTime")
+    }
+}
+
+/// Privacy settings view
+struct PrivacySettingsView: View {
+    @Environment(\.dismiss) private var dismiss
+    @State private var showProfileToOthers = UserDefaults.standard.bool(forKey: "showProfileToOthers")
+    @State private var showAchievementsToOthers = UserDefaults.standard.bool(forKey: "showAchievementsToOthers")
+    @State private var shareActivityWithHousehold = UserDefaults.standard.bool(forKey: "shareActivityWithHousehold")
+    
+    init() {
+        // Set defaults if no values are in UserDefaults
+        if !UserDefaults.standard.contains(key: "showProfileToOthers") {
+            _showProfileToOthers = State(initialValue: true)
+        }
+        
+        if !UserDefaults.standard.contains(key: "showAchievementsToOthers") {
+            _showAchievementsToOthers = State(initialValue: true)
+        }
+        
+        if !UserDefaults.standard.contains(key: "shareActivityWithHousehold") {
+            _shareActivityWithHousehold = State(initialValue: true)
+        }
+    }
+    
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                Theme.Colors.background.ignoresSafeArea()
+                
+                List {
+                    Section {
+                        Toggle("Share Profile with Household", isOn: $showProfileToOthers)
+                            .tint(Theme.Colors.primary)
+                        
+                        Toggle("Display Achievements", isOn: $showAchievementsToOthers)
+                            .tint(Theme.Colors.primary)
+                        
+                        Toggle("Share Activity History", isOn: $shareActivityWithHousehold)
+                            .tint(Theme.Colors.primary)
+                    } header: {
+                        Text("Visibility Settings")
+                    } footer: {
+                        Text("Control what information is visible to other members of your household.")
+                    }
+                    
+                    Section {
+                        Button {
+                            // Deep link to privacy policy
+                        } label: {
+                            HStack {
+                                Text("Privacy Policy")
+                                Spacer()
+                                Image(systemName: "arrow.up.right")
+                            }
+                        }
+                        
+                        Button {
+                            // Action to delete account
+                        } label: {
+                            Text("Delete My Account")
+                                .foregroundStyle(.red)
+                        }
+                    } header: {
+                        Text("Data & Privacy")
+                    } footer: {
+                        Text("View our privacy policy or request account deletion. Account deletion will permanently remove all your data.")
+                    }
+                }
+                .navigationTitle("Privacy")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button("Done") {
+                            savePrivacySettings()
+                            dismiss()
+                        }
+                    }
+                }
+                .onAppear {
+                    loadPrivacySettings()
+                }
+            }
+        }
+    }
+    
+    private func savePrivacySettings() {
+        // Save privacy settings to UserDefaults
+        UserDefaults.standard.set(showProfileToOthers, forKey: "showProfileToOthers")
+        UserDefaults.standard.set(showAchievementsToOthers, forKey: "showAchievementsToOthers")
+        UserDefaults.standard.set(shareActivityWithHousehold, forKey: "shareActivityWithHousehold")
+        
+        // Here we would also update server-side privacy settings
+        Task {
+            await UserService.shared.updatePrivacySettings(
+                showProfile: showProfileToOthers,
+                showAchievements: showAchievementsToOthers,
+                shareActivity: shareActivityWithHousehold
+            )
+        }
+    }
+    
+    private func loadPrivacySettings() {
+        // Load privacy settings from UserDefaults
+        showProfileToOthers = UserDefaults.standard.bool(forKey: "showProfileToOthers")
+        showAchievementsToOthers = UserDefaults.standard.bool(forKey: "showAchievementsToOthers")
+        shareActivityWithHousehold = UserDefaults.standard.bool(forKey: "shareActivityWithHousehold")
+    }
+}
+
+/// Help and support view
+struct HelpSupportView: View {
+    @Environment(\.dismiss) private var dismiss
+    @State private var showingFAQ = false
+    @State private var selectedQuestion: FAQItem?
+    @State private var feedbackText = ""
+    @State private var showingFeedbackSent = false
+    
+    // Sample FAQ items
+    private let faqItems = [
+        FAQItem(
+            question: "How do I create a new chore?",
+            answer: "To create a new chore, tap the + button at the top right of the Chores tab. Fill in the details like title, description, due date, and assigned person. Tap Save to create the chore."
+        ),
+        FAQItem(
+            question: "How do points work?",
+            answer: "Each chore has a point value associated with it. When you complete a chore, you earn those points. Points are tracked weekly and monthly on the leaderboard. Higher point values typically indicate more complex or time-consuming chores."
+        ),
+        FAQItem(
+            question: "How do I invite others to my household?",
+            answer: "In the Household tab, tap 'Invite Member' and share the generated invitation code with others. They can enter this code when joining a household to become members of your group."
+        ),
+        FAQItem(
+            question: "How do badges work?",
+            answer: "Badges are earned by completing achievements, such as completing a certain number of chores or maintaining a streak. You can view your earned badges in the Achievements tab."
+        ),
+        FAQItem(
+            question: "Can I edit or delete a chore?",
+            answer: "Yes! Tap on a chore to view its details. From there, you can tap the Edit button to modify it or the trash icon to delete it. Only the creator or the assignee can edit or delete a chore."
+        )
+    ]
+    
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                Theme.Colors.background.ignoresSafeArea()
+                
+                List {
+                    Section {
+                        ForEach(faqItems) { item in
+                            Button {
+                                selectedQuestion = item
+                                showingFAQ = true
+                            } label: {
+                                HStack {
+                                    Text(item.question)
+                                        .foregroundStyle(Theme.Colors.text)
+                                    Spacer()
+                                    Image(systemName: "chevron.right")
+                                        .foregroundStyle(Theme.Colors.textSecondary)
+                                        .font(.caption)
+                                }
+                            }
+                        }
+                    } header: {
+                        Text("Frequently Asked Questions")
+                    }
+                    
+                    Section {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("Send us Feedback")
+                                .font(Theme.Typography.bodyFontSystem.bold())
+                            
+                            TextEditor(text: $feedbackText)
+                                .frame(minHeight: 120)
+                                .padding(4)
+                                .background(
+                                    RoundedRectangle(cornerRadius: Theme.Dimensions.cornerRadiusSmall)
+                                        .stroke(Theme.Colors.textSecondary.opacity(0.3), lineWidth: 1)
+                                )
+                            
+                            Button {
+                                sendFeedback()
+                            } label: {
+                                Text("Send Feedback")
+                                    .frame(maxWidth: .infinity)
+                                    .padding(.vertical, 12)
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .tint(Theme.Colors.primary)
+                            .disabled(feedbackText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        }
+                    } header: {
+                        Text("Contact Support")
+                    } footer: {
+                        Text("We'll respond to your feedback as soon as possible.")
+                    }
+                }
+                .navigationTitle("Help & Support")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button("Done") {
+                            dismiss()
+                        }
+                    }
+                }
+                .sheet(isPresented: $showingFAQ) {
+                    if let question = selectedQuestion {
+                        faqDetailView(faq: question)
+                    }
+                }
+                .alert("Feedback Sent", isPresented: $showingFeedbackSent) {
+                    Button("OK", role: .cancel) { }
+                } message: {
+                    Text("Thank you for your feedback! We'll review it as soon as possible.")
+                }
+            }
+        }
+    }
+    
+    private func faqDetailView(faq: FAQItem) -> some View {
+        NavigationStack {
+            ZStack {
+                Theme.Colors.background.ignoresSafeArea()
+                
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 20) {
+                        Text(faq.question)
+                            .font(Theme.Typography.headingFontSystem)
+                            .foregroundStyle(Theme.Colors.text)
+                        
+                        Text(faq.answer)
+                            .font(Theme.Typography.bodyFontSystem)
+                            .foregroundStyle(Theme.Colors.text)
+                    }
+                    .padding()
+                }
+            }
+            .navigationTitle("FAQ")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") {
+                        showingFAQ = false
+                    }
+                }
+            }
+        }
+    }
+    
+    private func sendFeedback() {
+        // Here we would send the feedback to the support team
+        // For now, we'll just show a success alert
+        feedbackText = ""
+        showingFeedbackSent = true
+    }
+}
+
+/// About view showing app information
+struct AboutView: View {
+    @Environment(\.dismiss) private var dismiss
+    let appVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0.0"
+    let buildNumber = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1"
+    
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                Theme.Colors.background.ignoresSafeArea()
+                
+                ScrollView {
+                    VStack(spacing: 30) {
+                        // App icon and name
+                        VStack(spacing: 16) {
+                            Image(uiImage: UIImage(named: "AppIcon60x60") ?? UIImage())
+                                .resizable()
+                                .frame(width: 80, height: 80)
+                                .cornerRadius(16)
+                            
+                            Text("MyChores")
+                                .font(Theme.Typography.titleFontSystem.bold())
+                                .foregroundStyle(Theme.Colors.text)
+                            
+                            Text("Version \(appVersion) (\(buildNumber))")
+                                .font(Theme.Typography.captionFontSystem)
+                                .foregroundStyle(Theme.Colors.textSecondary)
+                        }
+                        .padding(.bottom, 20)
+                        
+                        // App information
+                        CardView {
+                            VStack(alignment: .leading, spacing: 16) {
+                                infoRow(title: "Developed By", value: "MyChores Team")
+                                infoRow(title: "Contact", value: "support@mychores.app")
+                                infoRow(title: "Website", value: "www.mychores.app")
+                            }
+                        }
+                        
+                        // Legal information
+                        CardView {
+                            VStack(alignment: .leading, spacing: 12) {
+                                Button {
+                                    // Open terms of service
+                                } label: {
+                                    Text("Terms of Service")
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .foregroundStyle(Theme.Colors.primary)
+                                }
+                                
+                                Divider()
+                                
+                                Button {
+                                    // Open privacy policy
+                                } label: {
+                                    Text("Privacy Policy")
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .foregroundStyle(Theme.Colors.primary)
+                                }
+                                
+                                Divider()
+                                
+                                Button {
+                                    // Open licenses
+                                } label: {
+                                    Text("Third-Party Licenses")
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .foregroundStyle(Theme.Colors.primary)
+                                }
+                            }
+                        }
+                        
+                        // Credits
+                        Text("© 2025 MyChores. All rights reserved.")
+                            .font(Theme.Typography.captionFontSystem)
+                            .foregroundStyle(Theme.Colors.textSecondary)
+                            .padding(.top, 20)
+                    }
+                    .padding()
+                }
+            }
+            .navigationTitle("About")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Done") {
+                        dismiss()
+                    }
+                }
+            }
+        }
+    }
+    
+    private func infoRow(title: String, value: String) -> some View {
+        HStack(alignment: .top) {
+            Text(title)
+                .font(Theme.Typography.bodyFontSystem)
+                .foregroundStyle(Theme.Colors.textSecondary)
+                .frame(width: 100, alignment: .leading)
+            
+            Text(value)
+                .font(Theme.Typography.bodyFontSystem)
+                .foregroundStyle(Theme.Colors.text)
+            
+            Spacer()
+        }
+    }
+}
+
+// MARK: - UserDefaults Extension
+
+extension UserDefaults {
+    /// Check if a key exists in UserDefaults
+    /// - Parameter key: The key to check
+    /// - Returns: True if the key exists, false otherwise
+    func contains(key: String) -> Bool {
+        return object(forKey: key) != nil
+    }
+}
+
+// Helper types
+struct FAQItem: Identifiable {
+    var id = UUID()
+    let question: String
+    let answer: String
 }
 
 #Preview {
