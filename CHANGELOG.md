@@ -1,5 +1,43 @@
 # Changelog
 
+## [1.0.28] - 2025-05-05
+
+### Fixed
+- Fixed compilation errors in Android project:
+  - Removed duplicate User and UserPrivacySettings class declarations in User.kt
+  - Fixed parameter inconsistency in UserPrivacySettings (showPoints vs shareActivity)
+  - Removed problematic Calendar utility object with extension functions
+  - Fixed duplicate companion object in ChoreAdapter.kt with DIFF_CALLBACK
+  - Fixed syntax errors in DateTimeUtils.kt related to getRelativeDateString method
+- Resolved Android build issues with resource conflicts:
+  - Commented out duplicate color definitions in md3_colors.xml that conflicted with colors.xml
+  - Commented out duplicate string resources in strings_backup.xml that conflicted with strings.xml
+  - Maintained the original files but removed the conflicting resources
+  - Updated ChoreAdapter to use standard Android system colors
+  - Optimized layout files to use direct size and color attributes
+- Enhanced Material Design integration:
+  - Added proper Material 3 color theming
+  - Added text appearance styles for consistent typography
+  - Improved RecyclerView item layout with standard attributes
+- Dependency management:
+  - Added CardView, ConstraintLayout, and Material components
+  - Added RecyclerView for list display
+  - Added Secure Preferences for encrypted storage
+
+## [1.0.27] - 2025-05-05
+
+### Added
+- Enhanced Android app implementation with improved data utilities:
+  - Created FirestoreUtils to streamline Firestore operations for Android
+  - Implemented PreferencesManager for secure storage of user data and settings
+  - Added utility classes for RecyclerView integration (ChoreAdapter)
+  - Created necessary drawable resources for notification and status icons
+  - Created layout file for chore items in RecyclerView (item_chore.xml)
+- Updated dependency injection in Android app:
+  - Modified AppContainer to include PreferencesManager
+  - Updated AuthService to use secure preferences for user credentials
+  - Enhanced service reliability with proper resource management
+
 ## [1.0.26] - 2025-05-04
 
 ### Added

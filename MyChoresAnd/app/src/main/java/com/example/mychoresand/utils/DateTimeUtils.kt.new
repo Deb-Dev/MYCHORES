@@ -1,0 +1,161 @@
+package com.example.mychoresand.utils
+
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Date
+import java.util.Locale
+import java.util.concurrent.TimeUnit
+
+/**
+ * Utility class for handling date and time operations
+ */
+object DateTimeUtils {
+    
+    private val dateFormatter = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+    private val timeFormatter = SimpleDateFormat("HH:mm", Locale.getDefault())
+    private val dateTimeFormatter = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault())
+    
+    /**
+     * Format a date to a string in the format "yyyy-MM-dd"
+     */
+    fun formatDate(date: Date): String {
+        return dateFormatter.format(date)
+    }
+    
+    /**
+     * Format a time to a string in the format "HH:mm"
+     */
+    fun formatTime(date: Date): String {
+        return timeFormatter.format(date)
+    }
+    
+    /**
+     * Format a date and time to a string in the format "yyyy-MM-dd HH:mm"
+     */
+    fun formatDateTime(date: Date): String {
+        return dateTimeFormatter.format(date)
+    }
+    
+    /**
+     * Parse a date string in the format "yyyy-MM-dd"
+     */
+    fun parseDate(dateString: String): Date? {
+        return try {
+            dateFormatter.parse(dateString)
+        } catch (e: Exception) {
+            null
+        }
+    }
+    
+    /**
+     * Parse a time string in the format "HH:mm"
+     */
+    fun parseTime(timeString: String): Date? {
+        return try {
+            timeFormatter.parse(timeString)
+        } catch (e: Exception) {
+            null
+        }
+    }
+    
+    /**
+     * Parse a date and time string in the format "yyyy-MM-dd HH:mm"
+     */
+    fun parseDateTime(dateTimeString: String): Date? {
+        return try {
+            dateTimeFormatter.parse(dateTimeString)
+        } catch (e: Exception) {
+            null
+        }
+    }
+    
+    /**
+     * Get the start of the current week (Monday 00:00:00)
+     */
+    fun getStartOfWeek(): Date {
+        val calendar = Calendar.getInstance()
+        calendar.set(Calendar.DAY_OF_WEEK, Calendar.MONDAY)
+        calendar.set(Calendar.HOUR_OF_DAY, 0)
+        calendar.set(Calendar.MINUTE, 0)
+        calendar.set(Calendar.SECOND, 0)
+        calendar.set(Calendar.MILLISECOND, 0)
+        
+        // If today is Sunday, we need to subtract 6 days to get to Monday of the current week
+        if (Calendar.getInstance().get(Calendar.DAY_OF_WEEK) == Calendar.SUNDAY) {
+            calendar.add(Calendar.DAY_OF_YEAR, -6)
+        }
+        
+        return calendar.time
+    }
+    
+    /**
+     * Get the start of the current month (1st day 00:00:00)
+     */
+    fun getStartOfMonth(): Date {
+        val calendar = Calendar.getInstance()
+        calendar.set(Calendar.DAY_OF_MONTH, 1)
+        calendar.set(Calendar.HOUR_OF_DAY, 0)
+        calendar.set(Calendar.MINUTE, 0)
+        calendar.set(Calendar.SECOND, 0)
+        calendar.set(Calendar.MILLISECOND, 0)
+        return calendar.time
+    }
+    
+    /**
+     * Create a date for the next occurrence of a recurring task
+     * @param currentDueDate The current due date
+     * @param recurrenceType The type of recurrence (daily, weekly, monthly)
+     */
+    fun getNextOccurrenceDate(currentDueDate: Date, recurrenceType: String): Date {
+        val calendar = Calendar.getInstance()
+        calendar.time = currentDueDate
+        
+        when (recurrenceType.lowercase(Locale.getDefault())) {
+            "daily" -> calendar.add(Calendar.DAY_OF_YEAR, 1)
+            "weekly" -> calendar.add(Calendar.WEEK_OF_YEAR, 1)
+            "monthly" -> calendar.add(Calendar.MONTH, 1)
+            "yearly" -> calendar.add(Calendar.YEAR, 1)
+        }
+        
+        return calendar.time
+    }
+    
+    /**
+     * Check if a date is overdue (before current date)
+     */
+    fun isOverdue(date: Date): Boolean {
+        return date.before(Date())
+    }
+    
+    /**
+     * Get a human-readable string for a date relative to now
+     * (e.g., "Today", "Tomorrow", "In 3 days", "2 days ago")
+     */
+    fun getRelativeDateString(date: Date): String {
+        val now = Calendar.getInstance()
+        val then = Calendar.getInstance()
+        then.time = date
+        
+        // Clear time part for day comparison
+        now.set(Calendar.HOUR_OF_DAY, 0)
+        now.set(Calendar.MINUTE, 0)
+        now.set(Calendar.SECOND, 0)
+        now.set(Calendar.MILLISECOND, 0)
+        
+        then.set(Calendar.HOUR_OF_DAY, 0)
+        then.set(Calendar.MINUTE, 0)
+        then.set(Calendar.SECOND, 0)
+        then.set(Calendar.MILLISECOND, 0)
+        
+        val difference = then.timeInMillis - now.timeInMillis
+        val days = TimeUnit.MILLISECONDS.toDays(difference)
+        
+        return when {
+            days == 0L -> "Today"
+            days == 1L -> "Tomorrow"
+            days > 1L && days < 7L -> "In $days days"
+            days < 0L && days > -7L -> "${-days} days ago"
+            else -> formatDate(date) // For dates more than a week away
+        }
+    }
+}

@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Material 3 Theme Colors -->
+    <color name="primary">#4F46E5</color>
+    <color name="primary_variant">#4338CA</color>
+    <color name="on_primary">#FFFFFF</color>
+    <color name="primary_container">#E0E0FF</color>
+    <color name="on_primary_container">#000E5F</color>
+    
+    <color name="secondary">#10B981</color>
+    <color name="secondary_variant">#059669</color>
+    <color name="on_secondary">#FFFFFF</color>
+    <color name="secondary_container">#B8F4D9</color>
+    <color name="on_secondary_container">#00201A</color>
+    
+    <color name="tertiary">#6941C6</color>
+    <color name="on_tertiary">#FFFFFF</color>
+    <color name="tertiary_container">#EADDFF</color>
+    <color name="on_tertiary_container">#22005D</color>
+    
+    <color name="error">#EF4444</color>
+    <color name="on_error">#FFFFFF</color>
+    <color name="error_container">#FFDAD6</color>
+    <color name="on_error_container">#410002</color>
+    
+    <color name="background">#F8FAFC</color>
+    <color name="on_background">#1E293B</color>
+    <color name="surface">#FFFFFF</color>
+    <color name="on_surface">#1E293B</color>
+    <color name="surface_variant">#E1E2EC</color>
+    <color name="on_surface_variant">#44474F</color>
+    
+    <color name="outline">#64748B</color>
+    <color name="outline_variant">#C4C6D0</color>
+    
+    <!-- App-specific semantic colors -->
+    <color name="success">#10B981</color>
+    <color name="warning">#F59E0B</color>
+    <color name="text">#1E293B</color>
+    <color name="text_secondary">#64748B</color>
+    
+    <!-- Legacy colors (needed for some components) -->
+    <color name="purple_200">#FFBB86FC</color>
+    <color name="purple_500">#FF6200EE</color>
+    <color name="purple_700">#FF3700B3</color>
+    <color name="teal_200">#FF03DAC5</color>
+    <color name="teal_700">#FF018786</color>
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+</resources>
