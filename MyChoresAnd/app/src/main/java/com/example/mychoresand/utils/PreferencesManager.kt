@@ -201,6 +201,14 @@ class PreferencesManager(context: Context) {
     }
     
     /**
+     * Get the authenticated user ID as a non-nullable String
+     * Returns empty string if no user ID is found
+     */
+    fun getCurrentUserId(): String {
+        return getUserId() ?: ""
+    }
+    
+    /**
      * Save the user's authentication token
      */
     fun saveAuthToken(token: String) {

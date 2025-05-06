@@ -1,5 +1,29 @@
 # Changelog
 
+## [1.0.42] - 2025-05-10
+
+### Fixed
+- Fixed compilation errors in ChoresScreen.kt:
+  - Added missing imports for Color, Calendar, and other required classes
+  - Fixed CurrentUserId not found error by implementing getCurrentUserId() method in PreferencesManager
+  - Improved date formatting logic with proper Calendar instance handling
+  - Fixed Color.White references by using fully qualified name
+  - Added null safety for AppContainer.choreViewModel usage
+  - Enhanced type safety throughout the implementation
+
+## [1.0.41] - 2025-05-10
+
+### Enhanced
+- Improved Android chore list UI to match iOS implementation:
+  - Added filter tabs for "All", "Assigned to Me", "Pending", and "Overdue" categories
+  - Enhanced chore item design with better visual hierarchy and styling
+  - Improved status indicators with gradient backgrounds and animated effects for overdue tasks
+  - Added enhanced date formatting to show relative dates like "Today" and "Tomorrow"
+  - Improved recurrence indication with proper text formatting (Daily, Weekly, etc.)
+  - Added user initials display for assigned users
+  - Added complete and delete functionality directly in the list view
+  - Matched color schemes and visual design with iOS app for consistent cross-platform experience
+
 ## [1.0.40] - 2025-05-09
 
 ### Fixed

@@ -15,13 +15,18 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Circle
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Repeat
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Card
@@ -42,6 +47,12 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.tween
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -56,7 +67,9 @@ import com.example.mychoresand.di.AppContainer
 import com.example.mychoresand.models.Chore
 import com.example.mychoresand.models.User
 import com.example.mychoresand.ui.components.LoadingIndicator
+import com.example.mychoresand.viewmodels.ChoreViewModel
 import java.text.SimpleDateFormat
+import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 
@@ -127,16 +140,18 @@ fun ChoreListScreen(
     }
     
     var selectedTabIndex by remember { mutableStateOf(0) }
-    val tabs = listOf("Pending", "Completed")
+    val tabs = listOf("All", "Assigned to Me", "Pending", "Overdue")
     
     Scaffold(
         floatingActionButton = {
             FloatingActionButton(
-                onClick = onCreateChore
+                onClick = onCreateChore,
+                containerColor = MaterialTheme.colorScheme.primary
             ) {
                 Icon(
                     imageVector = Icons.Default.Add,
-                    contentDescription = "Add Chore"
+                    contentDescription = "Add Chore",
+                    tint = MaterialTheme.colorScheme.onPrimary
                 )
             }
         },
@@ -160,22 +175,55 @@ fun ChoreListScreen(
                     modifier = Modifier.padding(bottom = 16.dp)
                 )
                 
-                TabRow(selectedTabIndex = selectedTabIndex) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
                     tabs.forEachIndexed { index, title ->
-                        Tab(
-                            text = { Text(title) },
-                            selected = selectedTabIndex == index,
-                            onClick = { selectedTabIndex = index }
-                        )
+                        val isSelected = selectedTabIndex == index
+                        val backgroundColor = if (isSelected) 
+                            MaterialTheme.colorScheme.primary 
+                        else 
+                            MaterialTheme.colorScheme.surfaceVariant
+                        val contentColor = if (isSelected) 
+                            MaterialTheme.colorScheme.onPrimary 
+                        else 
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                            
+                        Surface(
+                            color = backgroundColor,
+                            shape = MaterialTheme.shapes.small,
+                            modifier = Modifier
+                                .weight(1f)
+                                .clickable { selectedTabIndex = index }
+                        ) {
+                            Text(
+                                text = title,
+                                color = contentColor,
+                                style = MaterialTheme.typography.bodyMedium,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.padding(vertical = 8.dp, horizontal = 4.dp)
+                            )
+                        }
                     }
                 }
                 
                 if (isLoading) {
                     LoadingIndicator(fullscreen = true)
                 } else {
-                    val chores = if (selectedTabIndex == 0) pendingChores else completedChores
+                    val preferencesManager = AppContainer.preferencesManager
+    val currentUserId = preferencesManager?.getCurrentUserId() ?: ""
+                    val choresToDisplay = when (selectedTabIndex) {
+                        0 -> pendingChores + completedChores // All chores
+                        1 -> (pendingChores + completedChores).filter { it.assignedToUserId == currentUserId } // Assigned to me
+                        2 -> pendingChores // Pending only
+                        3 -> pendingChores.filter { it.isOverdue } // Overdue
+                        else -> pendingChores
+                    }
                     
-                    if (chores.isEmpty()) {
+                    if (choresToDisplay.isEmpty()) {
                         Box(
                             modifier = Modifier
                                 .fillMaxSize()
@@ -183,19 +231,30 @@ fun ChoreListScreen(
                             contentAlignment = Alignment.TopCenter
                         ) {
                             Text(
-                                text = if (selectedTabIndex == 0) 
-                                    "No pending chores found.\nAdd a chore to get started!"
-                                else 
-                                    "No completed chores yet.",
+                                text = when(selectedTabIndex) {
+                                    0 -> "No chores found.\nAdd a chore to get started!"
+                                    1 -> "No chores assigned to you.\nTake on a new task!"
+                                    2 -> "No pending chores.\nGreat job!"
+                                    3 -> "No overdue chores.\nYou're all caught up!"
+                                    else -> "No chores found."
+                                },
                                 style = MaterialTheme.typography.bodyLarge,
                                 textAlign = TextAlign.Center
                             )
                         }
                     } else {
-                        ChoreList(
-                            chores = chores,
-                            householdMembers = householdMembers,
-                            onChoreClick = onChoreClick
+                        // Pass the non-null viewModel or handle the null case safely
+                        viewModel?.let { vm ->
+                            ChoreList(
+                                chores = choresToDisplay,
+                                householdMembers = householdMembers,
+                                onChoreClick = onChoreClick,
+                                viewModel = vm
+                            )
+                        } ?: Text(
+                            text = "Error loading chore list",
+                            style = MaterialTheme.typography.bodyLarge,
+                            textAlign = TextAlign.Center
                         )
                     }
                 }
@@ -212,6 +271,7 @@ fun ChoreList(
     chores: List<Chore>,
     householdMembers: List<User>,
     onChoreClick: (String) -> Unit,
+    viewModel: ChoreViewModel,
     modifier: Modifier = Modifier
 ) {
     LazyColumn(
@@ -223,7 +283,13 @@ fun ChoreList(
             ChoreItem(
                 chore = chore,
                 assignee = householdMembers.find { it.id == chore.assignedToUserId },
-                onClick = { chore.id?.let { onChoreClick(it) } }
+                onClick = { chore.id?.let { onChoreClick(it) } },
+                onComplete = { choreId -> 
+                    choreId?.let { viewModel.completeChore(it) }
+                },
+                onDelete = { choreId ->
+                    choreId?.let { viewModel.deleteChore(it) } 
+                }
             )
         }
     }
@@ -237,10 +303,16 @@ fun ChoreItem(
     chore: Chore,
     assignee: User?,
     onClick: () -> Unit,
+    onComplete: (String?) -> Unit,
+    onDelete: (String?) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val dateFormat = SimpleDateFormat("MMM dd", Locale.getDefault())
     val isOverdue = chore.dueDate?.before(Date()) == true && !chore.isCompleted
+    val statusColor = when {
+        chore.isCompleted -> MaterialTheme.colorScheme.primary
+        isOverdue -> MaterialTheme.colorScheme.error
+        else -> MaterialTheme.colorScheme.primary
+    }
     
     Card(
         modifier = modifier
@@ -252,11 +324,7 @@ fun ChoreItem(
             hoveredElevation = 3.dp
         ),
         colors = CardDefaults.cardColors(
-            containerColor = when {
-                chore.isCompleted -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)
-                isOverdue -> MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.2f)
-                else -> MaterialTheme.colorScheme.surface
-            }
+            containerColor = MaterialTheme.colorScheme.surface
         )
     ) {
         Row(
@@ -265,13 +333,27 @@ fun ChoreItem(
                 .padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Status indicator circle
+            // Status indicator with enhanced design
             Box(
                 contentAlignment = Alignment.Center,
                 modifier = Modifier
-                    .padding(end = 16.dp)
+                    .size(44.dp)
+                    .padding(end = 8.dp)
             ) {
-                // Status indicator (simplified without gradient effect)
+                // Background circle with gradient effect
+                Canvas(modifier = Modifier.fillMaxSize()) {
+                    // Base circle - use white color
+                    drawCircle(
+                        color = androidx.compose.ui.graphics.Color.White,
+                        radius = size.minDimension / 2
+                    )
+                    
+                    // Gradient overlay
+                    drawCircle(
+                        color = statusColor.copy(alpha = 0.8f),
+                        radius = size.minDimension / 2
+                    )
+                }
                 
                 // Status icon
                 StatusIcon(
@@ -281,14 +363,14 @@ fun ChoreItem(
                 )
             }
             
-            // Chore details - using a flex column
+            // Chore details with enhanced styling
             Column(
                 modifier = Modifier.weight(1f)
             ) {
                 Text(
                     text = chore.title,
                     style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
+                    fontWeight = FontWeight.SemiBold,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                     color = if (chore.isCompleted) 
@@ -298,22 +380,45 @@ fun ChoreItem(
                     textDecoration = if (chore.isCompleted) TextDecoration.LineThrough else null
                 )
                 
-                if (chore.description.isNotEmpty()) {
-                    Text(
-                        text = chore.description,
-                        style = MaterialTheme.typography.bodyMedium,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.padding(top = 4.dp),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                
+                // Date, points, and recurrence info
                 Row(
-                    modifier = Modifier.padding(top = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                    modifier = Modifier.padding(top = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    // Points badge with star icon
+                    // Due date with enhanced formatting
+                    if (chore.dueDate != null) {
+                        val dateText = formatDateLikeIOS(chore.dueDate!!)
+                        val dateColor = if (isOverdue) 
+                            MaterialTheme.colorScheme.error
+                        else 
+                            MaterialTheme.colorScheme.onSurfaceVariant
+                            
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .background(
+                                    color = dateColor.copy(alpha = 0.1f),
+                                    shape = MaterialTheme.shapes.small
+                                )
+                                .padding(horizontal = 6.dp, vertical = 3.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.DateRange,
+                                contentDescription = "Due date",
+                                modifier = Modifier.size(12.dp),
+                                tint = dateColor
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = dateText,
+                                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
+                                color = dateColor
+                            )
+                        }
+                    }
+                    
+                    // Points badge
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier
@@ -321,7 +426,7 @@ fun ChoreItem(
                                 MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
                                 shape = MaterialTheme.shapes.small
                             )
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                            .padding(horizontal = 6.dp, vertical = 3.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Default.Star,
@@ -331,16 +436,14 @@ fun ChoreItem(
                         )
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
-                            text = "${chore.pointValue} ${if (chore.pointValue == 1) "pt" else "pts"}",
-                            style = MaterialTheme.typography.labelSmall,
+                            text = "${chore.pointValue} pts",
+                            style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.primary
                         )
                     }
                     
-                    Spacer(modifier = Modifier.width(8.dp))
-                    
-                    // Assignee badge
-                    if (assignee != null) {
+                    // Recurring indicator
+                    if (chore.isRecurring) {
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier
@@ -348,18 +451,18 @@ fun ChoreItem(
                                     MaterialTheme.colorScheme.secondary.copy(alpha = 0.1f),
                                     shape = MaterialTheme.shapes.small
                                 )
-                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                                .padding(horizontal = 6.dp, vertical = 3.dp)
                         ) {
                             Icon(
-                                imageVector = Icons.Default.Person,
-                                contentDescription = "Assigned to",
+                                imageVector = Icons.Default.Repeat,
+                                contentDescription = "Recurring",
                                 modifier = Modifier.size(12.dp),
                                 tint = MaterialTheme.colorScheme.secondary
                             )
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(
-                                text = assignee.displayName,
-                                style = MaterialTheme.typography.labelSmall,
+                                text = getRecurrenceText(chore),
+                                style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.secondary
                             )
                         }
@@ -367,51 +470,24 @@ fun ChoreItem(
                 }
             }
             
-            // Due date with calendar badge
-            if (chore.dueDate != null) {
-                Column(
-                    horizontalAlignment = Alignment.End
+            // Assignee initials (if assigned)
+            if (assignee != null) {
+                val initials = getInitials(assignee.displayName)
+                
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .size(30.dp)
+                        .background(
+                            color = MaterialTheme.colorScheme.secondary,
+                            shape = CircleShape
+                        )
                 ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier
-                            .background(
-                                color = if (isOverdue) 
-                                    MaterialTheme.colorScheme.error.copy(alpha = 0.1f)
-                                else 
-                                    MaterialTheme.colorScheme.tertiary.copy(alpha = 0.1f),
-                                shape = MaterialTheme.shapes.small
-                            )
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.DateRange,
-                            contentDescription = "Due date",
-                            modifier = Modifier.size(12.dp),
-                            tint = if (isOverdue) 
-                                MaterialTheme.colorScheme.error
-                            else 
-                                MaterialTheme.colorScheme.tertiary
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text(
-                            text = dateFormat.format(chore.dueDate!!),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = if (isOverdue) 
-                                MaterialTheme.colorScheme.error
-                            else 
-                                MaterialTheme.colorScheme.tertiary
-                        )
-                    }
-                    
-                    if (chore.isRecurring) {
-                        Text(
-                            text = "Recurring",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(top = 4.dp)
-                        )
-                    }
+                    Text(
+                        text = initials,
+                        style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onSecondary
+                    )
                 }
             }
         }
@@ -419,9 +495,9 @@ fun ChoreItem(
 }
 
 /**
- * Composable for status icon that handles all states:
+ * Composable for status icon that handles all states with enhanced styling:
  * - Completed: CheckCircle icon
- * - Overdue: Warning icon
+ * - Overdue: Warning icon with pulsing effect
  * - Pending: Empty circle
  */
 @Composable
@@ -430,25 +506,44 @@ private fun StatusIcon(
     isOverdue: Boolean,
     modifier: Modifier = Modifier
 ) {
-    val iconSize = 28.dp
+    val iconSize = 26.dp
     
     if (isCompleted) {
         Icon(
             imageVector = Icons.Default.CheckCircle,
             contentDescription = "Completed",
-            tint = MaterialTheme.colorScheme.primary,
+            tint = androidx.compose.ui.graphics.Color.White,
             modifier = modifier.size(iconSize)
         )
     } else if (isOverdue) {
+        // Warning icon with pulsing effect for overdue tasks
+        val infiniteTransition = rememberInfiniteTransition(label = "pulse")
+        val scale by infiniteTransition.animateFloat(
+            initialValue = 0.95f,
+            targetValue = 1.05f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(1200),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "pulse animation"
+        )
+        
         Icon(
             imageVector = Icons.Default.Warning,
             contentDescription = "Overdue",
-            tint = MaterialTheme.colorScheme.error,
-            modifier = modifier.size(iconSize)
+            tint = androidx.compose.ui.graphics.Color.White,
+            modifier = modifier
+                .size(iconSize)
+                .scale(scale)
         )
     } else {
         // Empty circle for pending tasks
-        DrawPendingCircle(modifier = modifier)
+        Icon(
+            imageVector = Icons.Default.Circle,
+            contentDescription = "Pending",
+            tint = androidx.compose.ui.graphics.Color.White,
+            modifier = modifier.size(iconSize)
+        )
     }
 }
 
@@ -468,5 +563,90 @@ private fun DrawPendingCircle(modifier: Modifier = Modifier) {
             radius = size.minDimension / 2.5f,
             style = Stroke(width = 2.dp.toPx())
         )
+    }
+}
+
+/**
+ * Format date in a similar way to iOS implementation
+ * Shows relative dates like "Today", "Tomorrow", or day of week for dates within a week
+ */
+private fun formatDateLikeIOS(date: Date): String {
+    val now = Date()
+    val calendar = Calendar.getInstance()
+    val timeFormat = SimpleDateFormat("h:mm a", Locale.getDefault())
+    
+    // Today
+    if (isSameDay(now, date)) {
+        return "Today, ${timeFormat.format(date)}"
+    }
+    
+    // Tomorrow
+    val tomorrowCalendar = Calendar.getInstance()
+    tomorrowCalendar.time = now
+    tomorrowCalendar.add(Calendar.DAY_OF_YEAR, 1)
+    if (isSameDay(tomorrowCalendar.time, date)) {
+        return "Tomorrow, ${timeFormat.format(date)}"
+    }
+    
+    // Within the next week
+    val weekCalendar = Calendar.getInstance() 
+    weekCalendar.time = now
+    weekCalendar.add(Calendar.DAY_OF_YEAR, 7)
+    if (date.before(weekCalendar.time)) {
+        val dayFormat = SimpleDateFormat("EEEE", Locale.getDefault())
+        return dayFormat.format(date)
+    }
+    
+    // Otherwise, standard date format
+    val dateFormat = SimpleDateFormat("MMM dd", Locale.getDefault())
+    return dateFormat.format(date)
+}
+
+/**
+ * Check if two dates are on the same day
+ */
+private fun isSameDay(date1: Date, date2: Date): Boolean {
+    val cal1 = Calendar.getInstance()
+    cal1.time = date1
+    val cal2 = Calendar.getInstance()
+    cal2.time = date2
+    return cal1.get(Calendar.YEAR) == cal2.get(Calendar.YEAR) &&
+           cal1.get(Calendar.DAY_OF_YEAR) == cal2.get(Calendar.DAY_OF_YEAR)
+}
+
+/**
+ * Get recurrence text for a recurring chore
+ */
+private fun getRecurrenceText(chore: Chore): String {
+    if (!chore.isRecurring || chore.recurrenceType == null || chore.recurrenceInterval == null) {
+        return "Recurring"
+    }
+    
+    return when (chore.recurrenceType) {
+        Chore.RecurrenceType.DAILY -> 
+            if (chore.recurrenceInterval == 1) "Daily" else "Every ${chore.recurrenceInterval} days"
+            
+        Chore.RecurrenceType.WEEKLY -> 
+            if (chore.recurrenceInterval == 1) "Weekly" else "Every ${chore.recurrenceInterval} weeks"
+            
+        Chore.RecurrenceType.MONTHLY -> 
+            if (chore.recurrenceInterval == 1) "Monthly" else "Every ${chore.recurrenceInterval} months"
+            
+        else -> "Recurring"
+    }
+}
+
+/**
+ * Get initials from a name
+ */
+private fun getInitials(name: String): String {
+    if (name.isEmpty()) return "U"
+    
+    val parts = name.trim().split(" ")
+    return if (parts.size > 1) {
+        (parts[0].firstOrNull()?.toString() ?: "") + 
+        (parts[1].firstOrNull()?.toString() ?: "")
+    } else {
+        parts[0].take(1).uppercase()
     }
 }
