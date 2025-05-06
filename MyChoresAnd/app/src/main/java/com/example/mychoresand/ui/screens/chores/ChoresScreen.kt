@@ -3,11 +3,13 @@ package com.example.mychoresand.ui.screens.chores
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -16,11 +18,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Circle
@@ -32,6 +34,7 @@ import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.FloatingActionButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
@@ -139,19 +142,22 @@ fun ChoreListScreen(
         }
     }
     
-    var selectedTabIndex by remember { mutableStateOf(0) }
-    val tabs = listOf("All", "Assigned to Me", "Pending", "Overdue")
+    var selectedTabIndex by remember { mutableStateOf(1) } // Default to "Assigned to Me" like iOS
+    val tabs = listOf("Assigned to Me", "Pending", "Overdue", "Completed")
     
     Scaffold(
         floatingActionButton = {
             FloatingActionButton(
                 onClick = onCreateChore,
-                containerColor = MaterialTheme.colorScheme.primary
+                containerColor = MaterialTheme.colorScheme.primary,
+                shape = RoundedCornerShape(16.dp),
+                elevation = FloatingActionButtonDefaults.elevation(8.dp)
             ) {
                 Icon(
                     imageVector = Icons.Default.Add,
                     contentDescription = "Add Chore",
-                    tint = MaterialTheme.colorScheme.onPrimary
+                    tint = MaterialTheme.colorScheme.onPrimary,
+                    modifier = Modifier.size(24.dp)
                 )
             }
         },
@@ -166,45 +172,51 @@ fun ChoreListScreen(
             Column(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(16.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                horizontalAlignment = Alignment.Start
             ) {
                 Text(
                     text = "Chores",
-                    style = MaterialTheme.typography.headlineLarge,
-                    modifier = Modifier.padding(bottom = 16.dp)
+                    style = MaterialTheme.typography.headlineLarge.copy(
+                        fontWeight = FontWeight.Bold
+                    ),
+                    modifier = Modifier.padding(vertical = 16.dp)
                 )
                 
+                // Horizontal scrollable row for filter chips that look like iOS
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState())
                         .padding(bottom = 16.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     tabs.forEachIndexed { index, title ->
                         val isSelected = selectedTabIndex == index
-                        val backgroundColor = if (isSelected) 
-                            MaterialTheme.colorScheme.primary 
-                        else 
-                            MaterialTheme.colorScheme.surfaceVariant
-                        val contentColor = if (isSelected) 
-                            MaterialTheme.colorScheme.onPrimary 
-                        else 
+                        val chipBackground = if (isSelected)
+                            MaterialTheme.colorScheme.primary
+                        else
+                            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)
+                        val chipContentColor = if (isSelected)
+                            MaterialTheme.colorScheme.onPrimary
+                        else
                             MaterialTheme.colorScheme.onSurfaceVariant
                             
                         Surface(
-                            color = backgroundColor,
-                            shape = MaterialTheme.shapes.small,
+                            color = chipBackground,
+                            shape = RoundedCornerShape(50), // More rounded like iOS pill shape
+                            shadowElevation = if (isSelected) 1.dp else 0.dp,
                             modifier = Modifier
-                                .weight(1f)
                                 .clickable { selectedTabIndex = index }
                         ) {
                             Text(
                                 text = title,
-                                color = contentColor,
-                                style = MaterialTheme.typography.bodyMedium,
+                                color = chipContentColor,
+                                style = MaterialTheme.typography.bodyMedium.copy(
+                                    fontWeight = if (isSelected) FontWeight.Medium else FontWeight.Normal
+                                ),
                                 textAlign = TextAlign.Center,
-                                modifier = Modifier.padding(vertical = 8.dp, horizontal = 4.dp)
+                                modifier = Modifier.padding(vertical = 12.dp, horizontal = 16.dp)
                             )
                         }
                     }
@@ -216,10 +228,10 @@ fun ChoreListScreen(
                     val preferencesManager = AppContainer.preferencesManager
     val currentUserId = preferencesManager?.getCurrentUserId() ?: ""
                     val choresToDisplay = when (selectedTabIndex) {
-                        0 -> pendingChores + completedChores // All chores
-                        1 -> (pendingChores + completedChores).filter { it.assignedToUserId == currentUserId } // Assigned to me
-                        2 -> pendingChores // Pending only
-                        3 -> pendingChores.filter { it.isOverdue } // Overdue
+                        0 -> (pendingChores + completedChores).filter { it.assignedToUserId == currentUserId } // Assigned to me
+                        1 -> pendingChores.filter { !it.isOverdue } // Pending (not overdue)
+                        2 -> pendingChores.filter { it.isOverdue } // Overdue
+                        3 -> completedChores // Completed
                         else -> pendingChores
                     }
                     
@@ -232,10 +244,10 @@ fun ChoreListScreen(
                         ) {
                             Text(
                                 text = when(selectedTabIndex) {
-                                    0 -> "No chores found.\nAdd a chore to get started!"
-                                    1 -> "No chores assigned to you.\nTake on a new task!"
-                                    2 -> "No pending chores.\nGreat job!"
-                                    3 -> "No overdue chores.\nYou're all caught up!"
+                                    0 -> "No chores assigned to you.\nTake on a new task!"
+                                    1 -> "No pending chores.\nGreat job!"
+                                    2 -> "No overdue chores.\nYou're all caught up!"
+                                    3 -> "No completed chores yet."
                                     else -> "No chores found."
                                 },
                                 style = MaterialTheme.typography.bodyLarge,
@@ -317,15 +329,17 @@ fun ChoreItem(
     Card(
         modifier = modifier
             .fillMaxWidth()
+            .padding(vertical = 4.dp)
             .clickable { onClick() },
         elevation = CardDefaults.cardElevation(
-            defaultElevation = 2.dp,
-            pressedElevation = 4.dp,
-            hoveredElevation = 3.dp
+            defaultElevation = 1.dp,
+            pressedElevation = 2.dp,
+            hoveredElevation = 1.5.dp
         ),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface
-        )
+        ),
+        shape = RoundedCornerShape(12.dp) // Slightly rounded corners like iOS
     ) {
         Row(
             modifier = Modifier
@@ -388,7 +402,7 @@ fun ChoreItem(
                 ) {
                     // Due date with enhanced formatting
                     if (chore.dueDate != null) {
-                        val dateText = formatDateLikeIOS(chore.dueDate!!)
+                        val dateText = com.example.mychoresand.utils.DateUtils.formatRelativeDate(chore.dueDate!!)
                         val dateColor = if (isOverdue) 
                             MaterialTheme.colorScheme.error
                         else 

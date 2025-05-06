@@ -1,5 +1,32 @@
 # Changelog
 
+## [1.0.44] - 2025-05-10
+
+### Fixed
+- Fixed compilation errors in filter tabs implementation:
+  - Resolved `@Composable invocations can only happen from the context of a @Composable function` errors
+  - Fixed `No parameter with name 'backgroundColor' found` in ScrollableTabRow
+  - Fixed duplicate import for Icons.Default.Add
+  - Moved date formatting logic to separate DateUtils class to avoid Calendar-related errors
+  - Added proper imports for horizontalScroll and rememberScrollState
+  - Removed unnecessary ScrollableTabRow and replaced with a simple Row + horizontalScroll implementation
+
+## [1.0.43] - 2025-05-10
+
+### Enhanced
+- Improved Android filter tabs UI to match iOS implementation:
+  - Updated filter tabs to match iOS: "Assigned to Me", "Pending", "Overdue", and "Completed"
+  - Enhanced filter chip design with pill-shaped containers for a more iOS-like appearance
+  - Added proper padding and spacing to match iOS design
+  - Added subtle shadow effect to selected chip for better visual hierarchy
+  - Set "Assigned to Me" as default selected tab to match iOS behavior
+  - Fixed filter logic to properly filter chores based on selected tab
+  - Improved layout with horizontal scrolling for filter chips
+  - Adjusted typography to match iOS styling with proper font weights
+  - Enhanced card design with subtle elevation and rounded corners
+  - Improved spacing between list items for better readability
+  - Refined visual hierarchy to emphasize important elements
+
 ## [1.0.42] - 2025-05-10
 
 ### Fixed
