@@ -59,7 +59,16 @@ class AuthViewModel(
                 },
                 onFailure = { error ->
                     _authState.value = AuthState.Unauthenticated
-                    _errorMessage.value = error.message ?: "Authentication failed"
+                    
+                    // Map common Firebase error messages to more user-friendly messages
+                    val errorMsg = when {
+                        error.message?.contains("badly formatted") == true -> "Please enter a valid email address"
+                        error.message?.contains("password is invalid") == true -> "Incorrect password"
+                        error.message?.contains("no user record") == true -> "No account found with this email"
+                        else -> error.message ?: "Authentication failed"
+                    }
+                    
+                    _errorMessage.value = errorMsg
                 }
             )
         }
@@ -87,7 +96,16 @@ class AuthViewModel(
                 },
                 onFailure = { error ->
                     _authState.value = AuthState.Unauthenticated
-                    _errorMessage.value = error.message ?: "Account creation failed"
+                    
+                    // Map common Firebase error messages to more user-friendly messages
+                    val errorMsg = when {
+                        error.message?.contains("badly formatted") == true -> "Please enter a valid email address"
+                        error.message?.contains("password") == true && error.message?.contains("weak") == true -> "Password is too weak"
+                        error.message?.contains("email address is already in use") == true -> "This email is already registered"
+                        else -> error.message ?: "Account creation failed"
+                    }
+                    
+                    _errorMessage.value = errorMsg
                 }
             )
         }

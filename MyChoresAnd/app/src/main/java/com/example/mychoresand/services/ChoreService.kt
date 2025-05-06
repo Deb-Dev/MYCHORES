@@ -1,6 +1,7 @@
 package com.example.mychoresand.services
 
 import com.example.mychoresand.models.Chore
+import com.example.mychoresand.utils.FirestoreEnumConverter
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.Query
@@ -25,22 +26,30 @@ class ChoreService(private val userService: UserService) {
      */
     fun getHouseholdChores(householdId: String, completed: Boolean): Flow<List<Chore>> = flow {
         try {
+            // Match iOS implementation - don't use compound sorting that requires indexes
             val query = choresCollection
                 .whereEqualTo("householdId", householdId)
                 .whereEqualTo("isCompleted", completed)
             
-            val queryWithSort = if (!completed) {
+            // Get all documents without sorting (for now) to avoid index requirements
+            val snapshot = query.get().await()
+            
+            // Use custom converter to handle lowercase enum values from Firestore
+            val chores = FirestoreEnumConverter.toChoreList(snapshot)
+            
+            // Sort locally after fetching the data
+            val sortedChores = if (!completed) {
                 // For pending chores, sort by due date (earliest first)
-                query.orderBy("dueDate", Query.Direction.ASCENDING)
+                chores.sortedBy { it.dueDate }
             } else {
                 // For completed chores, sort by completion date (most recent first)
-                query.orderBy("completedAt", Query.Direction.DESCENDING)
+                chores.sortedByDescending { it.completedAt }
             }
             
-            val snapshot = queryWithSort.get().await()
-            val chores = snapshot.documents.mapNotNull { it.toObject(Chore::class.java) }
-            emit(chores)
+            emit(sortedChores)
         } catch (e: Exception) {
+            // Log the error
+            android.util.Log.e("ChoreService", "Error fetching chores: ${e.message}", e)
             emit(emptyList())
         }
     }
@@ -61,18 +70,25 @@ class ChoreService(private val userService: UserService) {
                 .whereEqualTo("assignedToUserId", uid)
                 .whereEqualTo("isCompleted", completed)
             
-            val queryWithSort = if (!completed) {
+            // Get all documents without sorting (for now) to avoid index requirements
+            val snapshot = query.get().await()
+            
+            // Use custom converter to handle lowercase enum values from Firestore
+            val chores = FirestoreEnumConverter.toChoreList(snapshot)
+            
+            // Sort locally after fetching the data
+            val sortedChores = if (!completed) {
                 // For pending chores, sort by due date (earliest first)
-                query.orderBy("dueDate", Query.Direction.ASCENDING)
+                chores.sortedBy { it.dueDate }
             } else {
                 // For completed chores, sort by completion date (most recent first)
-                query.orderBy("completedAt", Query.Direction.DESCENDING)
+                chores.sortedByDescending { it.completedAt }
             }
             
-            val snapshot = queryWithSort.get().await()
-            val chores = snapshot.documents.mapNotNull { it.toObject(Chore::class.java) }
-            emit(chores)
+            emit(sortedChores)
         } catch (e: Exception) {
+            // Log the error
+            android.util.Log.e("ChoreService", "Error fetching user chores: ${e.message}", e)
             emit(emptyList())
         }
     }
@@ -85,8 +101,35 @@ class ChoreService(private val userService: UserService) {
     fun getChore(choreId: String): Flow<Chore?> = flow {
         try {
             val snapshot = choresCollection.document(choreId).get().await()
-            val chore = snapshot.toObject(Chore::class.java)
-            emit(chore)
+            if (snapshot.exists()) {
+                // Convert to QueryDocumentSnapshot for our converter to use
+                val chore = if (snapshot is com.google.firebase.firestore.QueryDocumentSnapshot) {
+                    FirestoreEnumConverter.toChore(snapshot)
+                } else {
+                    // Create a custom mapping for DocumentSnapshot if needed
+                    val data = snapshot.data
+                    if (data != null) {
+                        // Handle the conversion manually for single document case
+                        val recurrenceTypeStr = data["recurrenceType"] as? String
+                        val recurrenceType = when (recurrenceTypeStr?.lowercase()) {
+                            "daily" -> Chore.RecurrenceType.DAILY
+                            "weekly" -> Chore.RecurrenceType.WEEKLY
+                            "monthly" -> Chore.RecurrenceType.MONTHLY
+                            else -> null
+                        }
+                        
+                        // Create the Chore with properly parsed recurrenceType
+                        snapshot.toObject(Chore::class.java)?.copy(
+                            recurrenceType = recurrenceType
+                        )
+                    } else {
+                        null
+                    }
+                }
+                emit(chore)
+            } else {
+                emit(null)
+            }
         } catch (e: Exception) {
             emit(null)
         }

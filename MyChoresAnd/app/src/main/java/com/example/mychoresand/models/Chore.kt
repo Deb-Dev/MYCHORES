@@ -44,6 +44,11 @@ data class Chore(
                 }
             }
         }
+        
+        // Used by Firestore serialization to get the lowercase representation
+        override fun toString(): String {
+            return name.lowercase()
+        }
     }
     
     /**

@@ -38,6 +38,7 @@ import com.example.mychoresand.ui.components.MessageBar
 import com.example.mychoresand.ui.components.MessageType
 import com.example.mychoresand.ui.components.PrimaryButton
 import com.example.mychoresand.viewmodels.AuthState
+import android.util.Patterns
 
 /**
  * Authentication screen with login and register tabs
@@ -147,6 +148,25 @@ private fun AuthContent(
 }
 
 /**
+ * Validates an email address
+ * @param email The email to validate
+ * @return True if the email format is valid, false otherwise
+ */
+private fun isValidEmail(email: String): Boolean {
+    return email.isNotBlank() && Patterns.EMAIL_ADDRESS.matcher(email).matches()
+}
+
+/**
+ * Get appropriate email validation error message
+ * @param email The email to validate
+ * @return Error message or null if email is valid
+ */
+private fun getEmailValidationError(email: String): String? {
+    if (email.isBlank()) return null // Don't show errors for empty field
+    return if (!isValidEmail(email)) "Please enter a valid email address" else null
+}
+
+/**
  * Login form with email and password fields
  */
 @Composable
@@ -156,6 +176,7 @@ private fun LoginForm(
 ) {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
+    var emailError by remember { mutableStateOf<String?>(null) }
     
     Column(
         modifier = modifier.fillMaxWidth(),
@@ -164,7 +185,11 @@ private fun LoginForm(
         // Email field
         OutlinedTextField(
             value = email,
-            onValueChange = { email = it },
+            onValueChange = { 
+                email = it
+                // Real-time validation as user types
+                emailError = getEmailValidationError(it)
+            },
             label = { Text("Email") },
             leadingIcon = { 
                 Icon(Icons.Default.Email, contentDescription = null) 
@@ -173,6 +198,10 @@ private fun LoginForm(
                 keyboardType = KeyboardType.Email,
                 imeAction = ImeAction.Next
             ),
+            isError = emailError != null,
+            supportingText = {
+                emailError?.let { Text(it) }
+            },
             modifier = Modifier.fillMaxWidth()
         )
         
@@ -199,7 +228,15 @@ private fun LoginForm(
         // Login button
         PrimaryButton(
             text = "Sign In",
-            onClick = { onLogin(email, password) },
+            onClick = { 
+                // Check if email is valid before attempting to sign in
+                val validationError = getEmailValidationError(email)
+                if (validationError != null) {
+                    emailError = validationError
+                } else {
+                    onLogin(email, password)
+                }
+            },
             isFullWidth = true,
             enabled = email.isNotBlank() && password.isNotBlank()
         )
@@ -217,6 +254,7 @@ private fun RegisterForm(
     var name by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
+    var emailError by remember { mutableStateOf<String?>(null) }
     
     Column(
         modifier = modifier.fillMaxWidth(),
@@ -242,7 +280,11 @@ private fun RegisterForm(
         // Email field
         OutlinedTextField(
             value = email,
-            onValueChange = { email = it },
+            onValueChange = { 
+                email = it
+                // Real-time validation as user types
+                emailError = getEmailValidationError(it)
+            },
             label = { Text("Email") },
             leadingIcon = { 
                 Icon(Icons.Default.Email, contentDescription = null) 
@@ -251,6 +293,10 @@ private fun RegisterForm(
                 keyboardType = KeyboardType.Email,
                 imeAction = ImeAction.Next
             ),
+            isError = emailError != null,
+            supportingText = {
+                emailError?.let { Text(it) }
+            },
             modifier = Modifier.fillMaxWidth()
         )
         
@@ -277,7 +323,15 @@ private fun RegisterForm(
         // Register button
         PrimaryButton(
             text = "Register",
-            onClick = { onRegister(email, password, name) },
+            onClick = { 
+                // Check if email is valid before attempting to register
+                val validationError = getEmailValidationError(email)
+                if (validationError != null) {
+                    emailError = validationError
+                } else {
+                    onRegister(email, password, name)
+                }
+            },
             isFullWidth = true,
             enabled = name.isNotBlank() && email.isNotBlank() && password.isNotBlank()
         )

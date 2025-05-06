@@ -3,11 +3,13 @@ package com.example.mychoresand.viewmodels
 import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.mychoresand.di.AppContainer
 import com.example.mychoresand.models.Household
 import com.example.mychoresand.models.User
 import com.example.mychoresand.services.AuthService
 import com.example.mychoresand.services.HouseholdService
 import com.example.mychoresand.services.UserService
+import com.example.mychoresand.utils.PreferencesManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -92,7 +94,14 @@ class HouseholdViewModel(
                     // If we only have one household, select it automatically
                     if (fetchedHouseholds.size == 1) {
                         _selectedHousehold.value = fetchedHouseholds.first()
-                        fetchedHouseholds.first().id?.let { loadHouseholdMembers(it) }
+                        fetchedHouseholds.first().id?.let { householdId ->
+                            loadHouseholdMembers(householdId)
+                            // Save current household ID to preferences
+                            AppContainer.preferencesManager.saveString(
+                                PreferencesManager.KEY_CURRENT_HOUSEHOLD_ID, 
+                                householdId
+                            )
+                        }
                     }
                     
                     _isLoading.value = false
@@ -151,6 +160,16 @@ class HouseholdViewModel(
                         updatedHouseholds.add(household)
                         _households.value = updatedHouseholds
                         _selectedHousehold.value = household
+                        
+                        // Save current household ID to preferences
+                        household.id?.let { householdId ->
+                            AppContainer.preferencesManager.saveString(
+                                PreferencesManager.KEY_CURRENT_HOUSEHOLD_ID, 
+                                householdId
+                            )
+                            // Load members for the new household
+                            loadHouseholdMembers(householdId)
+                        }
                     },
                     onFailure = { e ->
                         throw e
@@ -182,6 +201,16 @@ class HouseholdViewModel(
                         loadHouseholds()
                         // Select the joined household
                         _selectedHousehold.value = household
+                        
+                        // Save current household ID to preferences
+                        household.id?.let { householdId ->
+                            AppContainer.preferencesManager.saveString(
+                                PreferencesManager.KEY_CURRENT_HOUSEHOLD_ID, 
+                                householdId
+                            )
+                            // Load members for the joined household
+                            loadHouseholdMembers(householdId)
+                        }
                     },
                     onFailure = { e ->
                         throw e
@@ -214,6 +243,8 @@ class HouseholdViewModel(
                         // Clear selected household if it was the one we left
                         if (_selectedHousehold.value?.id == householdId) {
                             _selectedHousehold.value = null
+                            // Clear current household ID from preferences
+                            AppContainer.preferencesManager.remove(PreferencesManager.KEY_CURRENT_HOUSEHOLD_ID)
                         }
                     },
                     onFailure = { e ->
@@ -251,5 +282,29 @@ class HouseholdViewModel(
     fun isCurrentUserOwner(household: Household): Boolean {
         val userId = authService.currentUser?.uid ?: return false
         return household.ownerUserId == userId
+    }
+    
+    /**
+     * Select a household and load its data
+     * @param household The household to select
+     */
+    fun selectHousehold(household: Household) {
+        viewModelScope.launch {
+            _selectedHousehold.value = household
+            
+            household.id?.let { householdId ->
+                // Save current household ID to preferences
+                AppContainer.preferencesManager.saveString(
+                    PreferencesManager.KEY_CURRENT_HOUSEHOLD_ID,
+                    householdId
+                )
+                
+                // Load household members
+                loadHouseholdMembers(householdId)
+                
+                // Load chores for the selected household using ChoreViewModel
+                AppContainer.choreViewModel.loadHouseholdChores(householdId)
+            }
+        }
     }
 }

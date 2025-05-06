@@ -262,9 +262,7 @@ fun HouseholdDetails(
     val tabs = listOf("Members", "Settings")
     
     Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .verticalScroll(rememberScrollState())
+        modifier = modifier.fillMaxWidth()
     ) {
         // Household name and invite code
         Card(
@@ -357,13 +355,19 @@ fun MembersTab(
             modifier = Modifier.padding(bottom = 8.dp)
         )
         
-        LazyColumn(
-            modifier = Modifier.fillMaxWidth()
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(400.dp) // Fixed height to contain the LazyColumn
         ) {
-            items(members) { member ->
-                MemberItem(member = member)
-                
-                Divider(modifier = Modifier.padding(vertical = 8.dp))
+            LazyColumn(
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                items(members) { member ->
+                    MemberItem(member = member)
+                    
+                    Divider(modifier = Modifier.padding(vertical = 8.dp))
+                }
             }
         }
     }
@@ -420,12 +424,11 @@ fun SettingsTab(
     onLeaveHousehold: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    // ... Beginning of SettingsTab remains the same
-    
     Column(
         modifier = modifier
             .fillMaxWidth()
             .padding(vertical = 16.dp)
+            .verticalScroll(rememberScrollState())
     ) {
         // Household information
         Text(

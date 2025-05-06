@@ -6,4 +6,6 @@ Follow the same architectural and stylistic patterns consistently throughout the
 For any changes you make. Summarize the changes in the chnagelog.md file.
 
 We are building an android app that matches the functionality of the iOS app as described in the PRD.md
-The system design for the iOS app is described in the SYSTEM_DE.md file.
+The system design for the iOS app is described in the SYSTEM_DESIGN.md file.
+Use the folder MyChoresAnd for the android app.
+Use perplexity to check the latest documentation for any libraries or frameworks you are using.

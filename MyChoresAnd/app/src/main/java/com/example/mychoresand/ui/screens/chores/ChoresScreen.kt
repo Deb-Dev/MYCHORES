@@ -1,7 +1,10 @@
 package com.example.mychoresand.ui.screens.chores
 
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -10,13 +13,17 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FloatingActionButton
@@ -28,6 +35,7 @@ import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -37,6 +45,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.navigation.NavController
@@ -108,6 +117,14 @@ fun ChoreListScreen(
     val completedChores by viewModel.completedChores.collectAsState()
     val householdMembers by viewModel.householdMembers.collectAsState()
     val isLoading by viewModel.isLoading.collectAsState()
+    
+    // Get current household ID and load chores when screen is displayed
+    LaunchedEffect(Unit) {
+        val currentHouseholdId = AppContainer.preferencesManager.getCurrentHouseholdId()
+        if (!currentHouseholdId.isNullOrEmpty()) {
+            viewModel.loadHouseholdChores(currentHouseholdId)
+        }
+    }
     
     var selectedTabIndex by remember { mutableStateOf(0) }
     val tabs = listOf("Pending", "Completed")
@@ -228,11 +245,16 @@ fun ChoreItem(
     Card(
         modifier = modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick),
+            .clickable { onClick() },
+        elevation = CardDefaults.cardElevation(
+            defaultElevation = 2.dp,
+            pressedElevation = 4.dp,
+            hoveredElevation = 3.dp
+        ),
         colors = CardDefaults.cardColors(
             containerColor = when {
                 chore.isCompleted -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f)
-                isOverdue -> MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.7f)
+                isOverdue -> MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.2f)
                 else -> MaterialTheme.colorScheme.surface
             }
         )
@@ -243,18 +265,23 @@ fun ChoreItem(
                 .padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Status/completion icon
-            if (chore.isCompleted) {
-                Icon(
-                    imageVector = Icons.Default.CheckCircle,
-                    contentDescription = "Completed",
-                    tint = MaterialTheme.colorScheme.primary
+            // Status indicator circle
+            Box(
+                contentAlignment = Alignment.Center,
+                modifier = Modifier
+                    .padding(end = 16.dp)
+            ) {
+                // Status indicator (simplified without gradient effect)
+                
+                // Status icon
+                StatusIcon(
+                    isCompleted = chore.isCompleted,
+                    isOverdue = isOverdue,
+                    modifier = Modifier
                 )
             }
             
-            Spacer(modifier = Modifier.width(16.dp))
-            
-            // Chore details
+            // Chore details - using a flex column
             Column(
                 modifier = Modifier.weight(1f)
             ) {
@@ -263,7 +290,12 @@ fun ChoreItem(
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    overflow = TextOverflow.Ellipsis,
+                    color = if (chore.isCompleted) 
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    else 
+                        MaterialTheme.colorScheme.onSurface,
+                    textDecoration = if (chore.isCompleted) TextDecoration.LineThrough else null
                 )
                 
                 if (chore.description.isNotEmpty()) {
@@ -272,62 +304,169 @@ fun ChoreItem(
                         style = MaterialTheme.typography.bodyMedium,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.padding(top = 4.dp)
+                        modifier = Modifier.padding(top = 4.dp),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
                 
                 Row(
-                    modifier = Modifier.padding(top = 4.dp),
+                    modifier = Modifier.padding(top = 8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    // Assignee
-                    if (assignee != null) {
+                    // Points badge with star icon
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .background(
+                                MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
+                                shape = MaterialTheme.shapes.small
+                            )
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
                         Icon(
-                            imageVector = Icons.Default.Person,
-                            contentDescription = "Assigned to",
-                            modifier = Modifier.padding(end = 4.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            imageVector = Icons.Default.Star,
+                            contentDescription = "Points",
+                            modifier = Modifier.size(12.dp),
+                            tint = MaterialTheme.colorScheme.primary
                         )
-                        
+                        Spacer(modifier = Modifier.width(4.dp))
                         Text(
-                            text = assignee.displayName,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            text = "${chore.pointValue} ${if (chore.pointValue == 1) "pt" else "pts"}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary
                         )
-                        
-                        Spacer(modifier = Modifier.width(8.dp))
                     }
                     
-                    // Points badge
-                    Text(
-                        text = "${chore.pointValue} ${if (chore.pointValue == 1) "pt" else "pts"}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.primary
-                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    
+                    // Assignee badge
+                    if (assignee != null) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .background(
+                                    MaterialTheme.colorScheme.secondary.copy(alpha = 0.1f),
+                                    shape = MaterialTheme.shapes.small
+                                )
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Person,
+                                contentDescription = "Assigned to",
+                                modifier = Modifier.size(12.dp),
+                                tint = MaterialTheme.colorScheme.secondary
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = assignee.displayName,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.secondary
+                            )
+                        }
+                    }
                 }
             }
             
-            // Due date & recurrence indicators
+            // Due date with calendar badge
             if (chore.dueDate != null) {
                 Column(
                     horizontalAlignment = Alignment.End
                 ) {
-                    Text(
-                        text = dateFormat.format(chore.dueDate!!),
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = if (isOverdue) MaterialTheme.colorScheme.error 
-                               else MaterialTheme.colorScheme.onSurface
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .background(
+                                color = if (isOverdue) 
+                                    MaterialTheme.colorScheme.error.copy(alpha = 0.1f)
+                                else 
+                                    MaterialTheme.colorScheme.tertiary.copy(alpha = 0.1f),
+                                shape = MaterialTheme.shapes.small
+                            )
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.DateRange,
+                            contentDescription = "Due date",
+                            modifier = Modifier.size(12.dp),
+                            tint = if (isOverdue) 
+                                MaterialTheme.colorScheme.error
+                            else 
+                                MaterialTheme.colorScheme.tertiary
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = dateFormat.format(chore.dueDate!!),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (isOverdue) 
+                                MaterialTheme.colorScheme.error
+                            else 
+                                MaterialTheme.colorScheme.tertiary
+                        )
+                    }
                     
                     if (chore.isRecurring) {
                         Text(
                             text = "Recurring",
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(top = 4.dp)
                         )
                     }
                 }
             }
         }
+    }
+}
+
+/**
+ * Composable for status icon that handles all states:
+ * - Completed: CheckCircle icon
+ * - Overdue: Warning icon
+ * - Pending: Empty circle
+ */
+@Composable
+private fun StatusIcon(
+    isCompleted: Boolean,
+    isOverdue: Boolean,
+    modifier: Modifier = Modifier
+) {
+    val iconSize = 28.dp
+    
+    if (isCompleted) {
+        Icon(
+            imageVector = Icons.Default.CheckCircle,
+            contentDescription = "Completed",
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = modifier.size(iconSize)
+        )
+    } else if (isOverdue) {
+        Icon(
+            imageVector = Icons.Default.Warning,
+            contentDescription = "Overdue",
+            tint = MaterialTheme.colorScheme.error,
+            modifier = modifier.size(iconSize)
+        )
+    } else {
+        // Empty circle for pending tasks
+        DrawPendingCircle(modifier = modifier)
+    }
+}
+
+/**
+ * Helper composable to draw pending task circle
+ * Draws a simple outlined circle to indicate pending status
+ */
+@Composable
+private fun DrawPendingCircle(modifier: Modifier = Modifier) {
+    // Capture the color during composition phase, before entering the Canvas drawing scope
+    val circleColor = MaterialTheme.colorScheme.secondary
+    
+    Canvas(modifier = modifier.size(24.dp)) {
+        // Simple circle for pending tasks without gradient effect
+        drawCircle(
+            color = circleColor, // Use the pre-captured color here
+            radius = size.minDimension / 2.5f,
+            style = Stroke(width = 2.dp.toPx())
+        )
     }
 }

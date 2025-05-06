@@ -85,7 +85,7 @@ class HouseholdService {
             
             // Add to Firestore
             val docRef = householdsCollection.document()
-            val householdWithId = household.copy(id = docRef.id)
+            val householdWithId = household.copy(documentId = docRef.id, id = docRef.id)
             docRef.set(householdWithId).await()
             
             // Add household to user's list
@@ -139,7 +139,13 @@ class HouseholdService {
             
             userRef.update("householdIds", updatedHouseholds).await()
             
-            val updatedHousehold = household.copy(memberUserIds = updatedMembers)
+            // Make sure both id and documentId are set
+            var updatedHousehold = household.copy(memberUserIds = updatedMembers)
+            updatedHousehold = updatedHousehold.copy(documentId = householdDoc.id)
+            if (updatedHousehold.id == null) {
+                updatedHousehold = updatedHousehold.copy(id = householdDoc.id)
+            }
+            
             Result.success(updatedHousehold)
         } catch (e: Exception) {
             Result.failure(e)

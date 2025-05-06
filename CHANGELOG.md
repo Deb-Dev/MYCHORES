@@ -1,5 +1,133 @@
 # Changelog
 
+## [1.0.40] - 2025-05-09
+
+### Fixed
+- Fixed chore fetching and displaying in Android app:
+  - Resolved the "Could not find enum value of RecurrenceType for value 'weekly'" error
+  - Added custom FirestoreEnumConverter utility to handle lowercase enum values from Firestore
+  - Enhanced Chore.RecurrenceType enum to properly handle lowercase string values
+  - Updated ChoreService to use the custom converter for all Firestore operations
+  - Enhanced MyChoresApplication to register custom enum handling on app startup
+  - Added custom toString() method to RecurrenceType enum to ensure lowercase serialization
+  - Ensured all Firestore operations properly handle cross-platform enum serialization
+  - Matched enum serialization/deserialization to be compatible with iOS app
+
+## [1.0.39] - 2025-05-09
+
+### Fixed
+- Fixed remaining "@Composable invocations" error in DrawPendingCircle:
+  - Pre-captured MaterialTheme.colorScheme.secondary during composition phase
+  - Moved theme color access outside of Canvas drawing scope
+  - Added explanatory comments to prevent similar issues in future
+  - Ensured proper separation between composition and drawing phases
+
+## [1.0.38] - 2025-05-09
+
+### Fixed
+- Simplified status indicator in ChoresScreen.kt:
+  - Updated DrawPendingCircle to use a simple circle without gradient effect
+  - Added clear code comments to improve maintainability
+  - Ensured consistent use of MaterialTheme color scheme 
+  - Improved code documentation
+  - Made StatusIcon composable more flexible with optional modifier parameter
+  - Updated DrawPendingCircle to accept modifier parameter for consistency
+  - Added detailed docstrings for all composables
+  - Used consistent sizing for all status indicators
+
+## [1.0.37] - 2025-05-08
+
+### Fixed
+- Fixed remaining Compose errors in ChoresScreen.kt:
+  - Consolidated multiple status icon composables into a single StatusIcon composable
+  - Added DrawPendingCircle helper composable to properly encapsulate Canvas drawing
+  - Resolved all "@Composable invocations can only happen from the context of a @Composable function" errors
+  - Improved component design with better separation of concerns
+
+## [1.0.36] - 2025-05-08
+
+### Fixed
+- Fixed multiple Kotlin compilation errors in ChoresScreen.kt:
+  - Fixed Card composable missing content parameter
+  - Fixed incorrect clickable modifier usage (switched to lambda syntax)
+  - Changed `when` statement to `if-else` for status icons to fix "@Composable invocations" errors
+  - Fixed Composable function invocations in non-Composable contexts
+  - Ensured all Compose API calls follow proper patterns
+
+## [1.0.35] - 2025-05-08
+
+### Fixed
+- Fixed Compose error in ChoreScreen.kt:
+  - Fixed incorrect usage of @Composable functions in when statements 
+  - Extracted status icons into separate @Composable functions
+  - Resolved "@Composable invocations can only happen from the context of a @Composable function" error
+  - Properly encapsulated Canvas drawing in dedicated composable functions
+
+## [1.0.34] - 2025-05-08
+
+### Fixed
+- Fixed structural code issues in ChoreScreen.kt:
+  - Fixed incorrect function scope and brace placement causing "Unresolved reference" errors
+  - Properly structured ChoreList and ChoreItem composables
+  - Ensured proper scope for all composable functions
+  - Made sure all colors are properly using MaterialTheme's color scheme
+
+## [1.0.33] - 2025-05-08
+
+### Fixed
+- Fixed Canvas rendering error in ChoreItem composable:
+  - Fixed Card composable syntax error that was causing layout issues
+  - Added proper imports for Canvas and Stroke
+  - Enhanced Canvas drawing with gradient effects to match iOS app
+  - Added empty circle icon for pending chores
+  - Added strikethrough text for completed chores
+  - Improved Card elevation with proper shadow effects
+  - Fixed overall visual fidelity to match iOS version
+
+## [1.0.32] - 2025-05-07
+
+### Improved
+- Enhanced ChoreItem UI in Android app:
+  - Redesigned the chore list item UI to match iOS styling
+  - Added visual status indicators with colored circles
+  - Created styled badges for points, assignees, and due dates
+  - Improved visual hierarchy and spacing between elements
+  - Added appropriate status icons for completed and overdue chores
+  - Implemented consistent styling across card elements
+  - Fixed visual appearance of chore items in list
+
+## [1.0.31] - 2025-05-07
+
+### Fixed
+- Fixed Firestore query issues in Android app:
+  - Modified ChoreService to avoid using compound queries that require special indexes
+  - Replaced orderBy queries with client-side sorting for chores
+  - Added better error logging in ChoreService to capture Firestore exceptions
+  - Applied similar approach to both household chores and user chores fetching
+  - Fixed "FAILED_PRECONDITION" errors from Firestore causing empty chore lists
+
+## [1.0.30] - 2025-05-07
+
+### Fixed
+- Fixed chore list not showing in Android app:
+  - Added LaunchedEffect to ChoreListScreen to load chores when the screen is displayed
+  - Implemented proper household ID persistence in PreferencesManager
+  - Updated HouseholdViewModel to save current household ID when selecting, creating, or joining a household
+  - Added selectHousehold method to properly update current household and load its chores
+  - Improved data loading flow between screens to ensure chores are fetched for the current household
+
+## [1.0.29] - 2025-05-06
+
+### Fixed
+- Fixed scrolling issues in Android app:
+  - Resolved crash caused by nested scrollable components in HouseholdScreen
+  - Removed verticalScroll from parent Column that contained LazyColumn in HouseholdDetails composable
+  - Added verticalScroll to SettingsTab composable for proper scrolling behavior 
+  - Set fixed height constraint for LazyColumn in MembersTab to prevent layout conflicts
+  - Verified all other screens (ChoresScreen, LeaderboardScreen, AuthScreen) to ensure they don't have scrolling conflicts
+  - Improved overall UI scrolling stability in tab-based screens
+  - Fixed issues with Jetpack Compose best practices for scrollable components
+
 ## [1.0.28] - 2025-05-05
 
 ### Fixed
@@ -9,6 +137,15 @@
   - Removed problematic Calendar utility object with extension functions
   - Fixed duplicate companion object in ChoreAdapter.kt with DIFF_CALLBACK
   - Fixed syntax errors in DateTimeUtils.kt related to getRelativeDateString method
+- Improved email validation in authentication screens:
+  - Added better client-side email validation to match iOS implementation
+  - Added real-time validation feedback as users type
+  - Improved error messages for invalid email formats
+  - Enhanced Firebase auth error handling with user-friendly messages
+- Fixed household join functionality in Android app:
+  - Resolved conflict between @DocumentId annotation and 'id' field in Household model
+  - Added separate documentId field to match iOS implementation where id is both a field and DocumentID
+  - Updated equality and hash code methods to handle both types of IDs
 - Resolved Android build issues with resource conflicts:
   - Commented out duplicate color definitions in md3_colors.xml that conflicted with colors.xml
   - Commented out duplicate string resources in strings_backup.xml that conflicted with strings.xml
