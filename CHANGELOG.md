@@ -1,5 +1,222 @@
 # Changelog
 
+## [1.0.65] - 2025-05-08
+
+### Fixed
+- Fixed Firestore Timestamp constructor error when marking chores as complete:
+  - Updated the code to use the correct Timestamp constructor with seconds and nanoseconds
+  - Fixed proper Date to Timestamp conversion for Firestore operations
+
+## [1.0.64] - 2025-05-08
+
+### Fixed
+- Fixed issue with marking chores as complete:
+  - Changed Firestore operation from `set()` to `update()` to only modify specific fields
+  - Ensured correct timestamp format for Firestore by using `Timestamp(date)` constructor
+  - Added detailed logging to diagnose completion verification issues
+  - Fixed field type issues in Firestore operations
+
+## [1.0.63] - 2025-05-08
+
+### Fixed
+- Fixed string interpolation issue in error message when marking chores as complete
+- Improved verification logic in ChoreService to better diagnose issues when marking chores as complete
+- Enhanced error logging to show actual completion status during verification
+
+## [1.0.62] - 2025-05-08
+
+### Fixed
+- Fixed Flow exception when creating new chores in Android app:
+  - Modified Flow collection in ChoreViewModel to use `collect` instead of `first()` to prevent cancellation errors
+  - Improved error handling and logging in FirestoreEnumConverter
+  - Added proper exception handling in ChoreService data fetch methods
+  - Enhanced UserService to correctly handle and log user data fetching issues
+  - Added try-catch block around household data loading in ChoreDetailScreen
+  - Fixed Flow transparency violation that was causing AbortFlow exceptions
+
+## [1.0.61] - 2025-05-08
+
+### Fixed
+- Fixed critical issues in Android app causing chores to disappear:
+  - Replaced incorrect Flow collection in `loadHouseholdChores` with `.first()` to ensure data is properly awaited
+  - Added automatic refresh when switching to the "Completed" tab
+  - Enhanced FirestoreEnumConverter with robust error handling and detailed logging
+  - Improved chore completion handling with automatic refresh after completion
+  - Added tap-to-complete functionality on status icons in the chore list
+  - Fixed string interpolation issues throughout the codebase
+  - Enhanced error handling for Firestore document parsing
+
+## [1.0.60] - 2025-05-08
+
+### Fixed
+- Resolved remaining compilation errors in Android `ChoreDetailScreen.kt`:
+  - Added missing `getValidHouseholdId` function to retrieve the correct household ID
+  - Fixed the missing `recurrenceEndDatePickerState` initialization
+  - Added `DaysOfWeekDialog` composable in a separate file with supporting functions
+  - Implemented `getDayName` helper function for consistent day name display
+  - Updated to use `preferencesManager` instead of non-existent `sessionManager`
+
+## [1.0.58] - 2025-05-08
+
+### Fixed
+- Fixed compilation errors in the Android `ChoreDetailScreen.kt`:
+  - Added missing imports for `Checkbox`, `Dialog`, `LocalContext`, and `FragmentActivity`.
+  - Fixed smart cast issue with `recurrenceDaysOfWeek` by using null-safe operators and local variables.
+  - Fixed unresolved reference issues for Calendar constants and Dialog composable.
+  - Fixed syntax errors in the Text composable for days of week selection by properly structuring the code.
+  - Improved type safety for day selection handling in recurrence settings with explicit lambda parameter names.
+  - Cleaned up code and removed unnecessary comments.
+
+## [1.0.57] - 2025-05-08
+
+### Added
+- Implemented "Days of Week" selection for weekly recurring chores in the Android `ChoreDetailScreen.kt`.
+- Implemented "Day of Month" selection for monthly recurring chores in the Android `ChoreDetailScreen.kt`.
+- Added a `DaysOfWeekDialog` composable for a user-friendly multi-selection of weekdays.
+- Added `getDayName` helper function for displaying day names.
+
+### Changed
+- Updated `ChoreEditForm` in `ChoreDetailScreen.kt` to include UI elements for selecting days of the week (for weekly recurrence) and day of the month (for monthly recurrence), matching iOS functionality.
+
+## [1.0.56] - 2025-05-08
+
+### Changed
+- Aligned Android chore management (add, edit, complete) with iOS implementation:
+  - **ChoreService.kt**:
+    - Ensured `nextOccurrenceDate` is correctly handled for recurring chores in `createChore`.
+    - `createChore` now returns the verified `Chore` object.
+    - `updateChore` preserves `createdByUserId` and `createdAt`.
+    - `completeChore` uses `FirestoreEnumConverter` for robust parsing and calls `userService.checkAndAwardBadges`.
+    - Ensured new instances of recurring chores get new Firestore IDs.
+  - **ChoreViewModel.kt**:
+    - Added `badgeEarnedMessage` StateFlow for badge notifications.
+    - `createChore` & `updateChore` now more closely match iOS logic, update local lists immediately, and refresh household chores.
+    - `completeChore` correctly updates lists, shows points earned, and reloads household chores to reflect new recurring instances.
+    - Improved error/success message handling and data refresh logic.
+    - `loadHouseholdChores` now also fetches household members.
+
+## [1.0.55] - 2025-05-07
+
+### Fixed
+- Fixed compiler errors in ChoreDetailScreen:
+  - Corrected imports and styling in the description field implementation
+  - Simplified Box implementation with proper Material3 shape references
+  - Removed problematic background styling that was causing compiler errors
+  - Improved text field styling for consistent appearance
+
+## [1.0.54] - 2025-05-07
+
+### Fixed
+- Fixed critical issue with chore creation in Android app:
+  - Completely rewrote the chore creation flow to match iOS implementation
+  - Enhanced Firestore document creation with explicit ID field updates
+  - Added immediate chore list updates for better user feedback
+  - Fixed description field with proper border, scrolling, and input handling
+  - Added detailed logging throughout the chore creation process
+  - Added verification step to confirm data is properly saved
+  - Ensured all chore fields including recurrance fields are properly passed to the service
+
+## [1.0.53] - 2025-05-06
+
+### Fixed
+- Fixed success message display issue in Android app:
+  - Added separate state flow for success messages
+  - Created proper success dialog with appropriate styling
+  - Ensured success messages don't appear in error dialogs
+  - Added verification steps to confirm chores are actually saved
+  - Improved error handling and feedback during chore creation
+
+## [1.0.52] - 2025-05-06
+
+### Fixed
+- Fixed critical issues with chore creation in Android app:
+  - Fixed issue where chores weren't being created despite success message
+  - Completely redesigned the description field to ensure text input works properly
+  - Added proper async handling to ensure chores are fully created before navigation
+  - Added detailed logging for better troubleshooting
+  - Implemented verification of chore creation through explicit retrieval
+  - Added callback mechanism to ensure UI state remains consistent with data changes
+
+## [1.0.51] - 2025-05-06
+
+### Fixed
+- Fixed and improved "New Chore" screen in Android app:
+  - Fixed issue with description field not allowing text input
+  - Enhanced form validation with meaningful error messages
+  - Improved text field UI with placeholder text and supporting text for validation
+  - Added ability to clear due date and assignee with a single click
+  - Improved dropdown menus with descriptive text and visual indicators
+  - Enhanced recurring chore UI with better toggles and visual structure
+  - Added keyboard type constraints for numeric fields
+  - Improved overall UX with card-based layout and better visual hierarchy
+  - Fixed compilation errors related to duplicate isError property
+  - Resolved method ambiguity with clearError by removing duplicate method definition
+  - Used fully qualified references to prevent ambiguity with ViewModel methods
+
+## [1.0.50] - 2025-05-16
+
+### Fixed
+- Fixed "Add Chore" functionality in Android app:
+  - Initialized householdId properly when creating new chores
+  - Added additional validation to ensure chores are created with valid household IDs
+  - Added a fallback mechanism to find a valid household ID when creating chores
+  - Implemented better error handling with user-friendly alerts
+  - Added comprehensive logging for easier debugging
+  - Ensured household members are loaded for the assignee dropdown when creating a new chore
+
+## [1.0.49] - 2025-05-14
+
+### Fixed
+- Fixed HouseholdViewModel implementation in Android app:
+  - Added missing getUser method to UserService to retrieve user by ID
+  - Ensured consistent API usage between HouseholdViewModel and UserService
+
+## [1.0.48] - 2025-05-13
+
+### Fixed
+- Fixed AchievementsViewModelEnhanced implementation on Android:
+  - Added missing UserService methods: getCurrentUserId, getUserById, and awardBadge
+  - Fixed unresolved references to user model fields and methods
+  - Enhanced error handling for badge-related operations
+  - Ensured proper synchronization with iOS app badge management
+
+## [1.0.47] - 2025-05-12
+
+### Fixed
+- Fixed compilation issues in Android's HouseholdScreenEnhanced screen:
+  - Added missing clickable import
+  - Fixed references to userHouseholds (now using households)
+  - Added missing clearErrorMessage extension function
+  - Fixed incorrect usage of LoadingIndicator by properly using modifier
+  - Added ZXing library dependency for QR code generation
+
+## [1.0.46] - 2025-05-12
+
+### Fixed
+- Fixed Firebase Functions integration in Android app:
+  - Added missing Firebase Functions dependency to the Android app build.gradle.kts
+  - Fixed import for Firebase.functions in NotificationServiceEnhanced
+  - Corrected implementation of Firebase Functions calls with proper result handling
+  - Enhanced error handling for Firebase Function responses
+  - Made function call chain consistent with iOS implementation
+  - Added proper result type parameters for Firebase Function calls
+
+## [1.0.45] - 2025-05-11
+
+### Enhanced
+- Improved Android notifications handling to match iOS implementation:
+  - Added proper notification permissions handling
+  - Enhanced notification appearance with category-based icons
+  - Added support for deep linking from notifications to specific chores
+  - Implemented badge count for app icon on supported devices
+- Refined Household management screen:
+  - Added member role indication (owner vs member)
+  - Improved invite flow with QR code support
+  - Enhanced visual design to match iOS implementation
+- Updated Badge achievement logic to match iOS implementation:
+  - Fixed inconsistencies in badge awarding criteria
+  - Added proper animations when earning new badges
+
 ## [1.0.44] - 2025-05-10
 
 ### Fixed

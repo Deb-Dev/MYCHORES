@@ -1,0 +1,45 @@
+    /**
+     * A helper function to ensure a chore is properly completed
+     * This is a more explicit way to mark a chore as completed to debug issues
+     * with completion verification
+     */
+    suspend fun forceCompleteChore(choreId: String): Result<Chore> {
+        android.util.Log.d(TAG, "🔔 forceCompleteChore called with ID: $choreId")
+        
+        try {
+            // Use a direct update with a map to ensure only these fields are updated
+            val updateData = mapOf(
+                "isCompleted" to true,
+                "completedAt" to com.google.firebase.Timestamp(Date()),
+                "completedByUserId" to auth.currentUser?.uid
+            )
+            
+            android.util.Log.d(TAG, "💾 Force updating chore with: $updateData")
+            
+            // Update Firestore directly
+            choresCollection.document(choreId).update(updateData).await()
+            
+            // Verify the update
+            val doc = choresCollection.document(choreId).get().await()
+            val isCompletedNow = doc.getBoolean("isCompleted") ?: false
+            
+            android.util.Log.d(TAG, "🔍 Force update verification: isCompleted=$isCompletedNow, raw data=${doc.data}")
+            
+            if (!isCompletedNow) {
+                android.util.Log.e(TAG, "❌ Force update verification failed!")
+                return Result.failure(Exception("Force update verification failed"))
+            }
+            
+            // Convert to Chore object
+            val updatedChore = FirestoreEnumConverter.toChore(doc)
+            
+            return if (updatedChore != null) {
+                Result.success(updatedChore)
+            } else {
+                Result.failure(Exception("Could not convert updated chore"))
+            }
+        } catch (e: Exception) {
+            android.util.Log.e(TAG, "❌ Force complete failed: ${e.message}", e)
+            return Result.failure(e)
+        }
+    }

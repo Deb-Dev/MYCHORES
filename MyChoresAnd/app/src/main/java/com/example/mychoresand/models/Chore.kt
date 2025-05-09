@@ -1,6 +1,8 @@
 package com.example.mychoresand.models
 
 import com.google.firebase.firestore.DocumentId
+import com.google.firebase.firestore.Exclude
+import com.google.firebase.firestore.PropertyName // Import PropertyName
 import java.util.Date
 import java.util.Calendar
 
@@ -15,15 +17,20 @@ data class Chore(
     var assignedToUserId: String? = null,
     var createdByUserId: String? = null,
     var dueDate: Date? = null,
+
+    @get:PropertyName("isCompleted") @set:PropertyName("isCompleted") // Ensure Firestore uses "isCompleted"
     var isCompleted: Boolean = false,
+
     var createdAt: Date = Date(),
     var completedAt: Date? = null,
     var completedByUserId: String? = null,
     var pointValue: Int = 1,
-    var isRecurring: Boolean = false,
+
+    @get:PropertyName("isRecurring") @set:PropertyName("isRecurring") // Ensure Firestore uses "isRecurring"
+    var isRecurring: Boolean = false, // Correct field name
     var recurrenceType: RecurrenceType? = null,
     var recurrenceInterval: Int? = null,
-    var recurrenceDaysOfWeek: List<Int>? = null,
+    var recurrenceDaysOfWeek: List<Int>? = null, // Stores Calendar.DAY_OF_WEEK values (1=Sun, 7=Sat)
     var recurrenceDayOfMonth: Int? = null,
     var recurrenceEndDate: Date? = null,
     var nextOccurrenceDate: Date? = null
@@ -31,9 +38,11 @@ data class Chore(
     /**
      * Types of recurrence patterns
      */
-    enum class RecurrenceType {
-        DAILY, WEEKLY, MONTHLY;
-        
+    enum class RecurrenceType(val displayName: String) { // Added displayName
+        DAILY("Daily"),
+        WEEKLY("Weekly"),
+        MONTHLY("Monthly");
+
         companion object {
             fun fromString(value: String): RecurrenceType? {
                 return when (value.lowercase()) {
@@ -44,7 +53,7 @@ data class Chore(
                 }
             }
         }
-        
+
         // Used by Firestore serialization to get the lowercase representation
         override fun toString(): String {
             return name.lowercase()
@@ -54,6 +63,7 @@ data class Chore(
     /**
      * Check if the chore is overdue
      */
+    @get:Exclude // Prevent Firestore from trying to serialize this getter as a field "overdue"
     val isOverdue: Boolean
         get() = !isCompleted && dueDate?.before(Date()) == true
     
@@ -62,73 +72,114 @@ data class Chore(
      * @return The next occurrence of this chore, or null if it shouldn't recur
      */
     fun createNextOccurrence(): Chore? {
-        if (!isRecurring || recurrenceType == null || recurrenceInterval == null) {
+        val TAG = "Chore.createNextOccurrence"
+        android.util.Log.d(TAG, "🔄 Creating next occurrence for chore: $id, title: $title")
+        
+        if (!isRecurring) {
+            android.util.Log.d(TAG, "⚠️ Cannot create next occurrence: Chore is not recurring")
             return null
         }
         
+        if (recurrenceType == null) {
+            android.util.Log.d(TAG, "⚠️ Cannot create next occurrence: Missing recurrence type")
+            return null
+        }
+        
+        if (recurrenceInterval == null) {
+            android.util.Log.d(TAG, "⚠️ Cannot create next occurrence: Missing recurrence interval")
+            return null
+        }
+        
+        android.util.Log.d(TAG, "📋 Recurrence info - type: $recurrenceType, interval: $recurrenceInterval")
+        
         val calendar = Calendar.getInstance()
         var nextDate: Date? = null
-        val occurrenceDate = nextOccurrenceDate ?: dueDate ?: return null
+        val occurrenceDate = nextOccurrenceDate ?: dueDate
+        
+        if (occurrenceDate == null) {
+            android.util.Log.d(TAG, "⚠️ Cannot create next occurrence: No due date or next occurrence date")
+            return null
+        }
+        
+        android.util.Log.d(TAG, "📆 Base date for calculation: $occurrenceDate")
         
         when (recurrenceType) {
             RecurrenceType.DAILY -> {
                 calendar.time = occurrenceDate
                 calendar.add(Calendar.DAY_OF_MONTH, recurrenceInterval!!)
                 nextDate = calendar.time
+                android.util.Log.d(TAG, "📆 DAILY: Next date calculated: $nextDate")
             }
             
             RecurrenceType.WEEKLY -> {
                 if (!recurrenceDaysOfWeek.isNullOrEmpty()) {
                     // Calculate next occurrence based on days of week
+                    android.util.Log.d(TAG, "📆 WEEKLY with days: ${recurrenceDaysOfWeek?.joinToString()}")
                     calendar.time = occurrenceDate
                     calendar.add(Calendar.DAY_OF_MONTH, 1)
                     
                     // Find the next day that matches our recurrence pattern
                     for (i in 0 until 7 * recurrenceInterval!!) {
                         val weekday = calendar.get(Calendar.DAY_OF_WEEK) - 1 // 0-indexed
+                        android.util.Log.d(TAG, "📆 Checking day ${calendar.time}, weekday: $weekday")
                         if (recurrenceDaysOfWeek!!.contains(weekday)) {
                             nextDate = calendar.time
+                            android.util.Log.d(TAG, "📆 Found matching day: $nextDate")
                             break
                         }
                         calendar.add(Calendar.DAY_OF_MONTH, 1)
                     }
                 } else {
                     // Simple weekly recurrence
+                    android.util.Log.d(TAG, "📆 Simple WEEKLY recurrence (no specific days)")
                     calendar.time = occurrenceDate
                     calendar.add(Calendar.WEEK_OF_YEAR, recurrenceInterval!!)
                     nextDate = calendar.time
+                    android.util.Log.d(TAG, "📆 Next date calculated: $nextDate")
                 }
             }
             
             RecurrenceType.MONTHLY -> {
                 if (recurrenceDayOfMonth != null) {
                     // Get the base next month date
+                    android.util.Log.d(TAG, "📆 MONTHLY with day of month: $recurrenceDayOfMonth")
                     calendar.time = occurrenceDate
                     calendar.add(Calendar.MONTH, recurrenceInterval!!)
                     
                     // Set to the specified day of month
                     val maxDays = calendar.getActualMaximum(Calendar.DAY_OF_MONTH)
                     val day = minOf(recurrenceDayOfMonth!!, maxDays)
+                    android.util.Log.d(TAG, "📆 Target day: $day (max: $maxDays)")
                     calendar.set(Calendar.DAY_OF_MONTH, day)
                     nextDate = calendar.time
+                    android.util.Log.d(TAG, "📆 Next date calculated: $nextDate")
                 } else {
                     // Just use same day next month
+                    android.util.Log.d(TAG, "📆 Simple MONTHLY recurrence (same day)")
                     calendar.time = occurrenceDate
                     calendar.add(Calendar.MONTH, recurrenceInterval!!)
                     nextDate = calendar.time
+                    android.util.Log.d(TAG, "📆 Next date calculated: $nextDate")
                 }
             }
             
-            else -> { /* No other types supported */ }
+            else -> { 
+                android.util.Log.d(TAG, "⚠️ Unsupported recurrence type: $recurrenceType")
+            }
         }
         
         // Check if we've passed the end date
-        if (recurrenceEndDate != null && nextDate != null && nextDate.after(recurrenceEndDate)) {
-            return null
+        if (recurrenceEndDate != null && nextDate != null) {
+            android.util.Log.d(TAG, "📆 Checking end date: $recurrenceEndDate vs next date: $nextDate")
+            if (nextDate.after(recurrenceEndDate)) {
+                android.util.Log.d(TAG, "⛔ Next date is after end date, no more occurrences")
+                return null
+            }
         }
         
         // Create the next occurrence
         return nextDate?.let {
+            android.util.Log.d(TAG, "✅ Creating next occurrence with due date: $it")
             val newChore = this.copy(
                 id = null,
                 isCompleted = false,
@@ -138,6 +189,7 @@ data class Chore(
                 nextOccurrenceDate = it,
                 createdAt = Date()
             )
+            android.util.Log.d(TAG, "🆕 New chore created: ${newChore.title}, dueDate: ${newChore.dueDate}")
             newChore
         }
     }

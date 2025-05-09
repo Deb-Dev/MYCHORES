@@ -62,6 +62,7 @@ dependencies {
     implementation("com.google.firebase:firebase-auth-ktx")
     implementation("com.google.firebase:firebase-firestore-ktx")
     implementation("com.google.firebase:firebase-messaging-ktx")
+    implementation("com.google.firebase:firebase-functions-ktx")
     
     // UI components
     implementation("androidx.navigation:navigation-compose:2.7.7")
@@ -90,4 +91,7 @@ dependencies {
     
     // Secure preferences
     implementation("androidx.security:security-crypto:1.1.0-alpha06")
+    
+    // ZXing for QR code generation
+    implementation("com.google.zxing:core:3.5.2")
 }

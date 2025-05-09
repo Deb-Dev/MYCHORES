@@ -4,6 +4,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.foundation.layout.Box
@@ -49,6 +50,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -71,6 +73,7 @@ import com.example.mychoresand.models.Chore
 import com.example.mychoresand.models.User
 import com.example.mychoresand.ui.components.LoadingIndicator
 import com.example.mychoresand.viewmodels.ChoreViewModel
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -105,6 +108,12 @@ fun ChoresScreen(
             val choreId = backStackEntry.arguments?.getString("choreId")
             
             if (choreId == "new") {
+                // Make sure we load the household data before creating a new chore
+                LaunchedEffect(Unit) {
+                    // Ensure households are loaded
+                    AppContainer.householdViewModel.loadHouseholds()
+                }
+                
                 ChoreDetailScreen(
                     choreId = null,
                     onBack = { navController.navigateUp() }
@@ -144,6 +153,17 @@ fun ChoreListScreen(
     
     var selectedTabIndex by remember { mutableStateOf(1) } // Default to "Assigned to Me" like iOS
     val tabs = listOf("Assigned to Me", "Pending", "Overdue", "Completed")
+    
+    // Refresh data when tab changes, especially for the completed tab
+    LaunchedEffect(selectedTabIndex) {
+        if (selectedTabIndex == 3) { // When "Completed" tab is selected
+            android.util.Log.d("ChoresScreen", "🔄 Completed tab selected, refreshing data...")
+            val currentHouseholdId = AppContainer.preferencesManager.getCurrentHouseholdId()
+            if (!currentHouseholdId.isNullOrEmpty()) {
+                viewModel.loadHouseholdChores(currentHouseholdId)
+            }
+        }
+    }
     
     Scaffold(
         floatingActionButton = {
@@ -319,6 +339,32 @@ fun ChoreItem(
     onDelete: (String?) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    // Handle completing a chore with confirmation and feedback
+    val scope = rememberCoroutineScope()
+    val completeChore = { 
+        android.util.Log.d("ChoreItem", "🔔 Completing chore: ${chore.id}, title: ${chore.title}")
+        
+        // Only allow completion if the chore isn't already completed
+        if (!chore.isCompleted) {
+            chore.id?.let { choreId ->
+                onComplete(choreId)
+                
+                // Force refresh the household chores after a short delay
+                // This ensures the UI reflects the completed chore and any recurring chore created
+                scope.launch {
+                    kotlinx.coroutines.delay(500)
+                    val currentHouseholdId = AppContainer.preferencesManager.getCurrentHouseholdId()
+                    if (!currentHouseholdId.isNullOrEmpty()) {
+                        AppContainer.choreViewModel.loadHouseholdChores(currentHouseholdId)
+                    }
+                }
+            }
+        } else {
+            android.util.Log.d("ChoreItem", "⚠️ Chore already completed, ignoring completion request")
+        }
+    }
+    
+    // Determine status visuals
     val isOverdue = chore.dueDate?.before(Date()) == true && !chore.isCompleted
     val statusColor = when {
         chore.isCompleted -> MaterialTheme.colorScheme.primary
@@ -346,14 +392,19 @@ fun ChoreItem(
                 .fillMaxWidth()
                 .padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
-        ) {
-            // Status indicator with enhanced design
-            Box(
-                contentAlignment = Alignment.Center,
-                modifier = Modifier
-                    .size(44.dp)
-                    .padding(end = 8.dp)
-            ) {
+        ) {                // Status indicator with enhanced design and click handling for completion
+                Box(
+                    contentAlignment = Alignment.Center,
+                    modifier = Modifier
+                        .size(44.dp)
+                        .padding(end = 8.dp)
+                        .clickable(
+                            enabled = !chore.isCompleted,
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null,
+                            onClick = { completeChore() }
+                        )
+                ) {
                 // Background circle with gradient effect
                 Canvas(modifier = Modifier.fillMaxSize()) {
                     // Base circle - use white color

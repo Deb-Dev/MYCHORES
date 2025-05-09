@@ -41,20 +41,47 @@ class UserService {
     }
     
     /**
+     * Get the current user ID from Firebase Auth
+     * @return The current user ID or null if not authenticated
+     */
+    fun getCurrentUserId(): String? {
+        return auth.currentUser?.uid
+    }
+
+    /**
      * Get a user by ID
      * @param userId The user ID to fetch
      * @return Flow emitting the user data or null
      */
-    fun getUser(userId: String): Flow<User?> = flow {
+    fun getUserById(userId: String): Flow<User?> = flow {
         try {
             val snapshot = usersCollection.document(userId).get().await()
+            val user = snapshot.toObject(User::class.java)
+            // Set the ID from the document ID if it was loaded
+            if (user != null && user.id == null) {
+                user.id = snapshot.id
+            }
+            emit(user)
+        } catch (e: Exception) {
+            emit(null)
+        }
+    }
+
+    /**
+     * Get a user by ID from Firestore
+     * @param uid User ID to retrieve
+     * @return Flow emitting the user data or null
+     */
+    fun getUser(uid: String): Flow<User?> = flow {
+        try {
+            val snapshot = usersCollection.document(uid).get().await()
             val user = snapshot.toObject(User::class.java)
             emit(user)
         } catch (e: Exception) {
             emit(null)
         }
     }
-    
+
     /**
      * Get users by IDs
      * @param userIds List of user IDs to fetch
@@ -151,32 +178,22 @@ class UserService {
     
     /**
      * Award a badge to a user
-     * @param userId User ID
-     * @param badgeKey The badge key/identifier
-     * @return Boolean indicating if the badge was newly awarded
+     * @param userId The user ID to award the badge to
+     * @param badgeKey The badge key to award
+     * @return True if successful, false otherwise
      */
     suspend fun awardBadge(userId: String, badgeKey: String): Boolean {
-        try {
-            // Get the current user to check if they already have the badge
-            val userDoc = usersCollection.document(userId).get().await()
-            val user = userDoc.toObject(User::class.java) ?: throw IllegalStateException("User not found")
-            
-            // Check if user already has this badge
-            if (user.earnedBadgeIds.contains(badgeKey)) {
-                return false
-            }
-            
-            // Award the new badge
+        return try {
             usersCollection.document(userId).update(
-                "earnedBadgeIds", FieldValue.arrayUnion(badgeKey)
+                "earnedBadgeIds", FieldValue.arrayUnion(badgeKey),
+                "updatedAt", Date()
             ).await()
-            
-            return true
+            true
         } catch (e: Exception) {
-            throw IllegalStateException("Failed to award badge: ${e.message}")
+            false
         }
     }
-    
+
     /**
      * Get users in a household for the leaderboard
      * @param householdId The household ID
@@ -184,10 +201,28 @@ class UserService {
      */
     fun getHouseholdUsers(householdId: String): Flow<List<User>> = flow {
         try {
+            android.util.Log.d("UserService", "Fetching users for household: $householdId")
             val snapshot = usersCollection.whereArrayContains("householdIds", householdId).get().await()
-            val users = snapshot.documents.mapNotNull { it.toObject(User::class.java) }
+            android.util.Log.d("UserService", "Fetched ${snapshot.size()} users from Firestore")
+            
+            val users = snapshot.documents.mapNotNull { 
+                try {
+                    it.toObject(User::class.java)?.also { user ->
+                        // Ensure ID is set
+                        if (user.id == null) {
+                            user.id = it.id
+                        }
+                    }
+                } catch (e: Exception) {
+                    android.util.Log.e("UserService", "Error converting user document: ${e.message}", e)
+                    null
+                }
+            }
+            android.util.Log.d("UserService", "Successfully converted ${users.size} user objects")
             emit(users)
         } catch (e: Exception) {
+            android.util.Log.e("UserService", "Error fetching household users: ${e.message}", e)
+            // Emit empty list instead of re-throwing the exception to prevent Flow cancellation
             emit(emptyList())
         }
     }
@@ -224,7 +259,7 @@ class UserService {
      * @param totalPoints The user's updated total points
      * @param currentBadges The user's current badges
      */
-    private suspend fun checkAndAwardBadges(userId: String, totalPoints: Int, currentBadges: List<String>) {
+    suspend fun checkAndAwardBadges(userId: String, totalPoints: Int, currentBadges: List<String>) {
         // Get eligible badges based on task completion count
         val eligibleBadges = Badge.predefinedBadges.filter { badge ->
             val requiredCount = badge.requiredTaskCount

@@ -143,15 +143,22 @@ class HouseholdViewModel(
     }
     
     /**
+     * Clear any error message
+     */
+    fun clearErrorMessage() {
+        _errorMessage.value = null
+    }
+    
+    /**
      * Create a new household
      */
-    fun createHousehold(name: String) {
+    fun createHousehold(name: String, description: String = "", callback: (Result<String?>) -> Unit = {}) {
         viewModelScope.launch {
             _isLoading.value = true
             _errorMessage.value = null
             
             try {
-                val result = householdService.createHousehold(name)
+                val result = householdService.createHousehold(name, description)
                 
                 result.fold(
                     onSuccess = { household ->
@@ -170,14 +177,19 @@ class HouseholdViewModel(
                             // Load members for the new household
                             loadHouseholdMembers(householdId)
                         }
+                        
+                        // Call the callback with success
+                        callback(Result.success(household.id))
                     },
                     onFailure = { e ->
+                        callback(Result.failure(e))
                         throw e
                     }
                 )
             } catch (e: Exception) {
                 Log.e(TAG, "Error creating household: ${e.message}", e)
                 _errorMessage.value = "Failed to create household: ${e.message}"
+                callback(Result.failure(e))
             } finally {
                 _isLoading.value = false
             }
@@ -187,7 +199,7 @@ class HouseholdViewModel(
     /**
      * Join a household using an invite code
      */
-    fun joinHousehold(inviteCode: String) {
+    fun joinHousehold(inviteCode: String, callback: (Result<String?>) -> Unit = {}) {
         viewModelScope.launch {
             _isLoading.value = true
             _errorMessage.value = null
@@ -211,8 +223,12 @@ class HouseholdViewModel(
                             // Load members for the joined household
                             loadHouseholdMembers(householdId)
                         }
+                        
+                        // Call the callback with success
+                        callback(Result.success(household.id))
                     },
                     onFailure = { e ->
+                        callback(Result.failure(e))
                         throw e
                     }
                 )
@@ -220,6 +236,7 @@ class HouseholdViewModel(
                 Log.e(TAG, "Error joining household: ${e.message}", e)
                 _errorMessage.value = "Failed to join household: ${e.message}"
                 _isLoading.value = false
+                callback(Result.failure(e))
             }
         }
     }

@@ -65,9 +65,10 @@ class HouseholdService {
     /**
      * Create a new household
      * @param name Name of the household
+     * @param description Optional description of the household
      * @return Result containing the created household if successful
      */
-    suspend fun createHousehold(name: String): Result<Household> {
+    suspend fun createHousehold(name: String, description: String = ""): Result<Household> {
         val uid = auth.currentUser?.uid ?: return Result.failure(Exception("User not logged in"))
         
         return try {
@@ -77,6 +78,7 @@ class HouseholdService {
             // Create the household
             val household = Household(
                 name = name,
+                description = description,
                 ownerUserId = uid,
                 memberUserIds = listOf(uid),
                 inviteCode = inviteCode,

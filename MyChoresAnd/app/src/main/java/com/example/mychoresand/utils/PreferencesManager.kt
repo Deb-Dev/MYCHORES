@@ -182,7 +182,9 @@ class PreferencesManager(context: Context) {
      * Get the ID of the current household
      */
     fun getCurrentHouseholdId(): String? {
-        return preferences.getString(KEY_CURRENT_HOUSEHOLD_ID, null)
+        val householdId = preferences.getString(KEY_CURRENT_HOUSEHOLD_ID, null)
+        android.util.Log.d("PreferencesManager", "getCurrentHouseholdId: $householdId")
+        return householdId
     }
     
     /**
