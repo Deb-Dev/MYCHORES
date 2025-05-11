@@ -207,7 +207,9 @@ data class Chore(
         
         // Otherwise compare critical properties
         return title == other.title &&
+                description == other.description &&
                 householdId == other.householdId &&
+                pointValue == other.pointValue &&
                 assignedToUserId == other.assignedToUserId &&
                 dueDate == other.dueDate &&
                 isCompleted == other.isCompleted
@@ -217,7 +219,9 @@ data class Chore(
         var result = id?.hashCode() ?: 0
         if (result == 0) {
             result = 31 * result + title.hashCode()
+            result = 31 * result + description.hashCode()
             result = 31 * result + householdId.hashCode()
+            result = 31 * result + pointValue.hashCode()
             result = 31 * result + (assignedToUserId?.hashCode() ?: 0)
             result = 31 * result + (dueDate?.hashCode() ?: 0)
             result = 31 * result + isCompleted.hashCode()
