@@ -63,6 +63,7 @@ import com.example.mychoresand.models.User
 import com.example.mychoresand.ui.components.LoadingIndicator
 import com.example.mychoresand.ui.components.PrimaryButton
 import com.example.mychoresand.ui.components.SecondaryButton
+import com.example.mychoresand.ui.screens.leaderboard.LeaderboardContent // Import LeaderboardContent
 
 /**
  * Screen that displays household information and management options
@@ -73,7 +74,7 @@ fun HouseholdScreen(
     modifier: Modifier = Modifier
 ) {
     val navController = rememberNavController()
-    
+
     NavHost(
         navController = navController,
         startDestination = "household_home"
@@ -86,13 +87,13 @@ fun HouseholdScreen(
                 modifier = modifier
             )
         }
-        
+
         composable("create_household") {
             CreateHouseholdScreen(
                 onBack = { navController.navigateUp() }
             )
         }
-        
+
         composable("join_household") {
             JoinHouseholdScreen(
                 onBack = { navController.navigateUp() }
@@ -114,14 +115,12 @@ fun HouseholdHomeScreen(
     val viewModel = AppContainer.householdViewModel
     val households by viewModel.households.collectAsState(initial = emptyList())
     val selectedHousehold by viewModel.selectedHousehold.collectAsState(initial = null)
-    
+
     // Fix: Updated property names to match iOS implementation
     val householdMembers by viewModel.householdMembers.collectAsState(initial = emptyList<User>())
     val currentUser by viewModel.currentUser.collectAsState(initial = null)
     val isLoading by viewModel.isLoading.collectAsState(initial = false)
-    
-    var showLeaveDialog by remember { mutableStateOf(false) }
-    
+
     Surface(
         modifier = modifier.fillMaxSize(),
         color = MaterialTheme.colorScheme.background
@@ -137,7 +136,7 @@ fun HouseholdHomeScreen(
                 style = MaterialTheme.typography.headlineLarge,
                 modifier = Modifier.padding(bottom = 16.dp)
             )
-            
+
             if (isLoading) {
                 LoadingIndicator(fullscreen = true)
             } else {
@@ -146,8 +145,7 @@ fun HouseholdHomeScreen(
                     HouseholdDetails(
                         household = selectedHousehold!!,
                         members = householdMembers,
-                        currentUser = currentUser,
-                        onLeaveHousehold = { showLeaveDialog = true }
+                        currentUser = currentUser
                     )
                 } else {
                     // Show options to create or join household
@@ -156,9 +154,9 @@ fun HouseholdHomeScreen(
                         onJoinHousehold = onJoinHousehold
                     )
                 }
-                
+
                 Spacer(modifier = Modifier.weight(1f))
-                
+
                 // Sign out button at the bottom
                 SecondaryButton(
                     text = "Sign Out",
@@ -166,36 +164,6 @@ fun HouseholdHomeScreen(
                     isFullWidth = true
                 )
             }
-        }
-        
-        if (showLeaveDialog) {
-            AlertDialog(
-                onDismissRequest = { showLeaveDialog = false },
-                title = { Text("Leave Household?") },
-                text = { Text("Are you sure you want to leave this household? You will lose access to all chores and data related to this household.") },
-                confirmButton = {
-                    TextButton(
-                        onClick = {
-                            selectedHousehold?.let { household ->
-                                // Fix: Use leaveHousehold method to match iOS implementation
-                                household.id?.let { householdId ->
-                                    viewModel.leaveHousehold(householdId)
-                                    showLeaveDialog = false
-                                }
-                            }
-                        }
-                    ) {
-                        Text("Leave")
-                    }
-                },
-                dismissButton = {
-                    TextButton(
-                        onClick = { showLeaveDialog = false }
-                    ) {
-                        Text("Cancel")
-                    }
-                }
-            )
         }
     }
 }
@@ -222,24 +190,24 @@ fun NoHouseholdView(
                 style = MaterialTheme.typography.headlineSmall,
                 textAlign = TextAlign.Center
             )
-            
+
             Spacer(modifier = Modifier.height(16.dp))
-            
+
             Text(
                 text = "You're not part of any household yet. Create a new household or join an existing one to get started.",
                 style = MaterialTheme.typography.bodyLarge,
                 textAlign = TextAlign.Center
             )
-            
+
             Spacer(modifier = Modifier.height(32.dp))
-            
+
             PrimaryButton(
                 text = "Create New Household",
                 onClick = onCreateHousehold,
                 isFullWidth = true,
                 modifier = Modifier.padding(bottom = 8.dp)
             )
-            
+
             SecondaryButton(
                 text = "Join Existing Household",
                 onClick = onJoinHousehold,
@@ -254,13 +222,12 @@ fun HouseholdDetails(
     household: Household,
     members: List<User>,
     currentUser: User?,
-    onLeaveHousehold: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val clipboardManager = LocalClipboardManager.current
     var tabIndex by remember { mutableStateOf(0) }
-    val tabs = listOf("Members", "Settings")
-    
+    val tabs = listOf("Members", "Leaderboard") // "Settings" tab removed
+
     Column(
         modifier = modifier.fillMaxWidth()
     ) {
@@ -281,15 +248,15 @@ fun HouseholdDetails(
                     style = MaterialTheme.typography.headlineSmall,
                     textAlign = TextAlign.Center
                 )
-                
+
                 Spacer(modifier = Modifier.height(8.dp))
-                
+
                 Text(
                     text = "Invite Code",
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                
+
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.padding(top = 4.dp)
@@ -299,7 +266,7 @@ fun HouseholdDetails(
                         style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold),
                         modifier = Modifier.padding(end = 8.dp)
                     )
-                    
+
                     if (household.inviteCode != null) {
                         IconButton(
                             onClick = {
@@ -315,7 +282,7 @@ fun HouseholdDetails(
                 }
             }
         }
-        
+
         // Tabs for members and settings
         TabRow(selectedTabIndex = tabIndex) {
             tabs.forEachIndexed { index, title ->
@@ -326,15 +293,10 @@ fun HouseholdDetails(
                 )
             }
         }
-        
+
         when (tabIndex) {
             0 -> MembersTab(members = members)
-            1 -> SettingsTab(
-                household = household,
-                // Fix: Updated to use ownerUserId which is the equivalent of creatorUserId in iOS
-                isCreator = household.ownerUserId == currentUser?.id,
-                onLeaveHousehold = onLeaveHousehold
-            )
+            1 -> LeaderboardContent(modifier = Modifier.fillMaxSize())
         }
     }
 }
@@ -354,7 +316,7 @@ fun MembersTab(
             style = MaterialTheme.typography.titleMedium,
             modifier = Modifier.padding(bottom = 8.dp)
         )
-        
+
         Box(
             modifier = Modifier
                 .fillMaxWidth()
@@ -365,7 +327,7 @@ fun MembersTab(
             ) {
                 items(members) { member ->
                     MemberItem(member = member)
-                    
+
                     Divider(modifier = Modifier.padding(vertical = 8.dp))
                 }
             }
@@ -398,117 +360,21 @@ fun MemberItem(
                 )
             }
         }
-        
+
         Spacer(modifier = Modifier.width(16.dp))
-        
+
         Column {
             Text(
                 text = member.displayName,
                 style = MaterialTheme.typography.bodyLarge,
                 fontWeight = FontWeight.Bold
             )
-            
+
             Text(
                 text = member.email,
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-        }
-    }
-}
-
-@Composable
-fun SettingsTab(
-    household: Household,
-    isCreator: Boolean,
-    onLeaveHousehold: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Column(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(vertical = 16.dp)
-            .verticalScroll(rememberScrollState())
-    ) {
-        // Household information
-        Text(
-            text = "Household Information",
-            style = MaterialTheme.typography.titleMedium,
-            modifier = Modifier.padding(bottom = 8.dp)
-        )
-        
-        OutlinedCard(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(bottom = 16.dp)
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp)
-            ) {
-                Text(
-                    text = "Created On",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                
-                Text(
-                    text = household.createdAt.toString(),
-                    style = MaterialTheme.typography.bodyLarge,
-                    modifier = Modifier.padding(bottom = 8.dp)
-                )
-                
-                if (isCreator) {
-                    Text(
-                        text = "You are the creator of this household",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                }
-            }
-        }
-        
-        // Leave household option
-        Text(
-            text = "Danger Zone",
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.error,
-            modifier = Modifier.padding(top = 16.dp, bottom = 8.dp)
-        )
-        
-        OutlinedCard(
-            modifier = Modifier.fillMaxWidth(),
-            colors = CardDefaults.outlinedCardColors(
-                containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.1f)
-            )
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp)
-            ) {
-                Text(
-                    text = "Leave Household",
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.error
-                )
-                
-                Text(
-                    text = "This will remove you from the household and you will lose access to all chores and data.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(vertical = 8.dp)
-                )
-                
-                Button(
-                    onClick = onLeaveHousehold,
-                    modifier = Modifier.align(Alignment.End)
-                ) {
-                    Text("Leave Household")
-                }
-            }
         }
     }
 }
@@ -524,7 +390,7 @@ fun CreateHouseholdScreen(
     val viewModel = AppContainer.householdViewModel
     var householdName by remember { mutableStateOf("") }
     var isCreating by remember { mutableStateOf(false) }
-    
+
     Surface(
         modifier = modifier.fillMaxSize(),
         color = MaterialTheme.colorScheme.background
@@ -544,13 +410,13 @@ fun CreateHouseholdScreen(
                     contentDescription = "Back"
                 )
             }
-            
+
             Text(
                 text = "Create New Household",
                 style = MaterialTheme.typography.headlineMedium,
                 modifier = Modifier.padding(vertical = 16.dp)
             )
-            
+
             OutlinedTextField(
                 value = householdName,
                 onValueChange = { householdName = it },
@@ -559,7 +425,7 @@ fun CreateHouseholdScreen(
                     .fillMaxWidth()
                     .padding(vertical = 16.dp)
             )
-            
+
             PrimaryButton(
                 text = if (isCreating) "Creating..." else "Create Household",
                 onClick = {
@@ -590,7 +456,7 @@ fun JoinHouseholdScreen(
     val viewModel = AppContainer.householdViewModel
     var inviteCode by remember { mutableStateOf("") }
     var isJoining by remember { mutableStateOf(false) }
-    
+
     Surface(
         modifier = modifier.fillMaxSize(),
         color = MaterialTheme.colorScheme.background
@@ -610,20 +476,20 @@ fun JoinHouseholdScreen(
                     contentDescription = "Back"
                 )
             }
-            
+
             Text(
                 text = "Join Household",
                 style = MaterialTheme.typography.headlineMedium,
                 modifier = Modifier.padding(vertical = 16.dp)
             )
-            
+
             Text(
                 text = "Enter the invite code for the household you want to join",
                 style = MaterialTheme.typography.bodyLarge,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.padding(bottom = 16.dp)
             )
-            
+
             OutlinedTextField(
                 value = inviteCode,
                 onValueChange = { inviteCode = it },
@@ -632,7 +498,7 @@ fun JoinHouseholdScreen(
                     .fillMaxWidth()
                     .padding(vertical = 16.dp)
             )
-            
+
             PrimaryButton(
                 text = if (isJoining) "Joining..." else "Join Household",
                 onClick = {

@@ -50,13 +50,32 @@ import com.example.mychoresand.ui.components.LoadingIndicator
 fun LeaderboardScreen(
     modifier: Modifier = Modifier
 ) {
+    Column(
+        modifier = modifier.fillMaxSize().padding(top = 16.dp, start = 16.dp, end = 16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ){
+        Text(
+            text = "Leaderboard",
+            style = MaterialTheme.typography.headlineLarge,
+            modifier = Modifier.padding(bottom = 16.dp)
+        )
+        LeaderboardContent(modifier = Modifier.fillMaxSize())
+    }
+}
+
+/**
+ * Composable that contains the actual leaderboard content (Tabs, lists, etc.)
+ * This can be reused in HouseholdScreen.
+ */
+@Composable
+fun LeaderboardContent(modifier: Modifier = Modifier) {
     val viewModel = AppContainer.leaderboardViewModel
     val weeklyLeaderboard by viewModel.weeklyLeaderboard.collectAsState(initial = emptyList())
     val monthlyLeaderboard by viewModel.monthlyLeaderboard.collectAsState(initial = emptyList())
     val allTimeLeaderboard by viewModel.allTimeLeaderboard.collectAsState(initial = emptyList())
     val isLoading by viewModel.isLoading.collectAsState(initial = false)
     val currentUser by viewModel.currentUser.collectAsState(initial = null)
-    
+
     // Make sure to load the leaderboard data for the current household
     LaunchedEffect(Unit) {
         // We need to get the current household ID from somewhere
@@ -66,66 +85,52 @@ fun LeaderboardScreen(
             viewModel.loadLeaderboard(householdId)
         }
     }
-    
+
     var selectedTabIndex by remember { mutableStateOf(0) }
     val tabs = listOf("Weekly", "Monthly", "All Time")
-    
-    Surface(
-        modifier = modifier.fillMaxSize(),
-        color = MaterialTheme.colorScheme.background
+
+    Column(
+        modifier = modifier // Use the passed modifier
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(16.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            Text(
-                text = "Leaderboard",
-                style = MaterialTheme.typography.headlineLarge,
-                modifier = Modifier.padding(bottom = 16.dp)
-            )
-            
-            TabRow(selectedTabIndex = selectedTabIndex) {
-                tabs.forEachIndexed { index, title ->
-                    Tab(
-                        text = { Text(title) },
-                        selected = selectedTabIndex == index,
-                        onClick = { selectedTabIndex = index }
-                    )
-                }
+        TabRow(selectedTabIndex = selectedTabIndex) {
+            tabs.forEachIndexed { index, title ->
+                Tab(
+                    text = { Text(title) },
+                    selected = selectedTabIndex == index,
+                    onClick = { selectedTabIndex = index }
+                )
             }
-            
-            Spacer(modifier = Modifier.height(16.dp))
-            
-            if (isLoading) {
-                LoadingIndicator(fullscreen = true)
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        if (isLoading) {
+            LoadingIndicator(fullscreen = true)
+        } else {
+            val leaderboardData = when (selectedTabIndex) {
+                0 -> weeklyLeaderboard
+                1 -> monthlyLeaderboard
+                else -> allTimeLeaderboard
+            }
+
+            if (leaderboardData.isEmpty()) {
+                EmptyLeaderboard(selectedTabIndex)
             } else {
-                val leaderboardData = when (selectedTabIndex) {
-                    0 -> weeklyLeaderboard
-                    1 -> monthlyLeaderboard
-                    else -> allTimeLeaderboard
-                }
-                
-                if (leaderboardData.isEmpty()) {
-                    EmptyLeaderboard(selectedTabIndex)
-                } else {
-                    // Show top 3 users in a special way
-                    if (leaderboardData.size >= 2) {
-                        TopLeadersRow(
-                            users = leaderboardData.take(3),
-                            currentUserId = currentUser?.id
-                        )
-                        
-                        Spacer(modifier = Modifier.height(24.dp))
-                    }
-                    
-                    // Show full list
-                    LeaderboardList(
-                        users = leaderboardData,
+                // Show top 3 users in a special way
+                if (leaderboardData.size >= 2) {
+                    TopLeadersRow(
+                        users = leaderboardData.take(3),
                         currentUserId = currentUser?.id
                     )
+
+                    Spacer(modifier = Modifier.height(24.dp))
                 }
+
+                // Show full list
+                LeaderboardList(
+                    users = leaderboardData,
+                    currentUserId = currentUser?.id
+                )
             }
         }
     }
@@ -138,7 +143,7 @@ fun EmptyLeaderboard(tabIndex: Int) {
         1 -> "No points earned this month yet."
         else -> "No points earned yet."
     }
-    
+
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -154,16 +159,16 @@ fun EmptyLeaderboard(tabIndex: Int) {
                 tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
                 modifier = Modifier.size(64.dp)
             )
-            
+
             Spacer(modifier = Modifier.height(16.dp))
-            
+
             Text(
                 text = message,
                 style = MaterialTheme.typography.bodyLarge,
                 textAlign = TextAlign.Center,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            
+
             Text(
                 text = "Complete chores to earn points and climb the leaderboard!",
                 style = MaterialTheme.typography.bodyMedium,
@@ -197,7 +202,7 @@ fun TopLeadersRow(
         } else {
             Spacer(modifier = Modifier.weight(1f))
         }
-        
+
         // First place in the middle and larger
         if (users.isNotEmpty()) {
             TopLeaderItem(
@@ -209,7 +214,7 @@ fun TopLeadersRow(
         } else {
             Spacer(modifier = Modifier.weight(1.2f))
         }
-        
+
         // If we have at least 3 users, show 3rd place on the right
         if (users.size >= 3) {
             TopLeaderItem(
@@ -242,20 +247,20 @@ fun TopLeaderItem(
         1 -> 80.dp
         else -> 60.dp
     }
-    
+
     val medalColor = when (place) {
         1 -> Color(0xFFFFD700) // Gold
         2 -> Color(0xFFC0C0C0) // Silver
         3 -> Color(0xFFCD7F32) // Bronze
         else -> MaterialTheme.colorScheme.primary
     }
-    
+
     val backgroundColor = if (isCurrentUser) {
         MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
     } else {
         Color.Transparent
     }
-    
+
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         modifier = modifier
@@ -280,7 +285,7 @@ fun TopLeaderItem(
                     )
                 }
             }
-            
+
             // Medal icon
             Surface(
                 modifier = Modifier
@@ -299,9 +304,9 @@ fun TopLeaderItem(
                 }
             }
         }
-        
+
         Spacer(modifier = Modifier.height(8.dp))
-        
+
         Text(
             text = user.displayName,
             style = MaterialTheme.typography.bodyLarge,
@@ -309,7 +314,7 @@ fun TopLeaderItem(
             textAlign = TextAlign.Center,
             maxLines = 1
         )
-        
+
         Text(
             // Changed from user.points to user.totalPoints, weeklyPoints, or monthlyPoints based on the tab
             text = "${when (place) {
@@ -345,12 +350,12 @@ fun LeaderboardList(
                 } else {
                     Color.Transparent
                 }
-                
+
                 // Skip the top 3 if we displayed them separately above
                 if (users.size >= 3 && place <= 3) {
                     return@itemsIndexed
                 }
-                
+
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier
@@ -365,7 +370,7 @@ fun LeaderboardList(
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier.width(32.dp)
                     )
-                    
+
                     // User avatar
                     Surface(
                         modifier = Modifier
@@ -381,9 +386,9 @@ fun LeaderboardList(
                             )
                         }
                     }
-                    
+
                     Spacer(modifier = Modifier.width(16.dp))
-                    
+
                     // User name
                     Text(
                         text = user.displayName,
@@ -391,7 +396,7 @@ fun LeaderboardList(
                         fontWeight = if (isCurrentUser) FontWeight.Bold else FontWeight.Normal,
                         modifier = Modifier.weight(1f)
                     )
-                    
+
                     // Points
                     Text(
                         // Changed from user.points to user.totalPoints

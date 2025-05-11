@@ -7,8 +7,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Assignment
 import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.Leaderboard
 import androidx.compose.material.icons.filled.People
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
@@ -27,15 +27,17 @@ import com.example.mychoresand.ui.screens.achievements.AchievementsScreen
 import com.example.mychoresand.ui.screens.chores.ChoresScreen
 import com.example.mychoresand.ui.screens.household.HouseholdScreen
 import com.example.mychoresand.ui.screens.leaderboard.LeaderboardScreen
+import com.example.mychoresand.ui.screens.profile.ProfileScreen
 import androidx.compose.ui.unit.dp
+
 /**
  * Tabs for the main navigation
  */
 enum class HomeTab(val title: String, val icon: ImageVector) {
     CHORES("Chores", Icons.Default.Assignment),
     HOUSEHOLD("Household", Icons.Default.People),
-    LEADERBOARD("Leaderboard", Icons.Default.Leaderboard),
-    ACHIEVEMENTS("Achievements", Icons.Default.EmojiEvents)
+    ACHIEVEMENTS("Achievements", Icons.Default.EmojiEvents),
+    PROFILE("Profile", Icons.Default.Person)
 }
 
 /**
@@ -69,8 +71,8 @@ fun HomeScreen(
             when (currentTab) {
                 HomeTab.CHORES -> ChoresScreen()
                 HomeTab.HOUSEHOLD -> HouseholdScreen(onSignOut = onSignOut)
-                HomeTab.LEADERBOARD -> LeaderboardScreen()
                 HomeTab.ACHIEVEMENTS -> AchievementsScreen()
+                HomeTab.PROFILE -> ProfileScreen(onSignOut = onSignOut)
             }
         }
     }
