@@ -87,6 +87,7 @@ fun ChoresScreen(
     modifier: Modifier = Modifier
 ) {
     val navController = rememberNavController()
+    val viewModel = AppContainer.choreViewModel
     
     NavHost(
         navController = navController,
@@ -95,35 +96,54 @@ fun ChoresScreen(
         composable("chore_list") {
             ChoreListScreen(
                 onChoreClick = { choreId ->
-                    navController.navigate("chore_detail/$choreId")
+                    navController.navigate("chore_view/$choreId")
                 },
                 onCreateChore = {
-                    navController.navigate("chore_detail/new")
+                    navController.navigate("chore_create")
                 },
                 modifier = modifier
             )
         }
         
-        composable("chore_detail/{choreId}") { backStackEntry ->
-            val choreId = backStackEntry.arguments?.getString("choreId")
+        // View chore details (read-only)
+        composable("chore_view/{choreId}") { backStackEntry ->
+            val choreId = backStackEntry.arguments?.getString("choreId") ?: ""
             
-            if (choreId == "new") {
-                // Make sure we load the household data before creating a new chore
-                LaunchedEffect(Unit) {
-                    // Ensure households are loaded
-                    AppContainer.householdViewModel.loadHouseholds()
+            ChoreViewScreen(
+                choreId = choreId,
+                onBack = { navController.navigateUp() },
+                onEdit = { id -> navController.navigate("chore_edit/$id") },
+                onDelete = { id -> 
+                    viewModel.deleteChore(id)
+                    navController.navigateUp()
                 }
-                
-                ChoreDetailScreen(
-                    choreId = null,
-                    onBack = { navController.navigateUp() }
-                )
-            } else {
-                ChoreDetailScreen(
-                    choreId = choreId,
-                    onBack = { navController.navigateUp() }
-                )
+            )
+        }
+        
+        // Create a new chore
+        composable("chore_create") {
+            // Make sure we load the household data before creating a new chore
+            LaunchedEffect(Unit) {
+                // Ensure households are loaded
+                AppContainer.householdViewModel.loadHouseholds()
             }
+            
+            ChoreCreateEditScreen(
+                choreId = null,
+                onBack = { navController.navigateUp() },
+                onSaveComplete = { navController.navigateUp() }
+            )
+        }
+        
+        // Edit an existing chore
+        composable("chore_edit/{choreId}") { backStackEntry ->
+            val choreId = backStackEntry.arguments?.getString("choreId") ?: ""
+            
+            ChoreEditScreen(
+                choreId = choreId,
+                onBack = { navController.navigateUp() },
+                onSaveComplete = { navController.navigate("chore_view/$choreId") }
+            )
         }
     }
 }
@@ -246,7 +266,7 @@ fun ChoreListScreen(
                     LoadingIndicator(fullscreen = true)
                 } else {
                     val preferencesManager = AppContainer.preferencesManager
-    val currentUserId = preferencesManager?.getCurrentUserId() ?: ""
+                    val currentUserId = preferencesManager?.getCurrentUserId() ?: ""
                     val choresToDisplay = when (selectedTabIndex) {
                         0 -> (pendingChores + completedChores).filter { it.assignedToUserId == currentUserId } // Assigned to me
                         1 -> pendingChores.filter { !it.isOverdue } // Pending (not overdue)

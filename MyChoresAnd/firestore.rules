@@ -1,0 +1,202 @@
+// Firestore security rules for MyChores app
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    function isUserAuthenticated(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+    
+    // Users collection - users can read other users' data but only update their own
+    match /users/{userId} {
+      // Validate user data
+      function isValidUser(user) {
+        return user.size() > 0 &&
+               user.name is string &&
+               user.email is string;
+      }
+      
+      // Check if update is only affecting badges or points
+      function isPointsOrBadgesUpdate() {
+        let allowedFields = ['earnedBadges', 'totalPoints', 'weeklyPoints', 'monthlyPoints', 'currentWeekStartDate', 'currentMonthStartDate'];
+        let fieldPaths = request.resource.data.diff(resource.data).affectedKeys();
+        return fieldPaths.hasOnly(allowedFields);
+      }
+      
+      // Anyone signed in can read user data
+      allow read: if isSignedIn();
+      
+      // Users can update their own data, or others can update just badges and points
+      allow update: if isUserAuthenticated(userId) || 
+                      (isSignedIn() && isPointsOrBadgesUpdate());
+      
+      // Only the user can delete their account
+      allow delete: if isUserAuthenticated(userId);
+      
+      // Only the user can create their account
+      allow create: if isSignedIn() && request.auth.uid == userId;
+    }
+    
+    // Top-level chores collection - access based on household membership
+    match /chores/{choreId} {
+      // Get household ID safely from either resource or request.resource
+      function getHouseholdId(isCreate) {
+        return isCreate ? request.resource.data.householdId : resource.data.householdId;
+      }
+      
+      // Check if user is a member of the household this chore belongs to
+      function isHouseholdMember(isCreate) {
+        let householdId = getHouseholdId(isCreate);
+        let household = get(/databases/$(database)/documents/households/$(householdId));
+        return isSignedIn() && request.auth.uid in household.data.memberUserIds;
+      }
+      
+      // Check if user is the owner of the household this chore belongs to
+      function isHouseholdOwner(isCreate) {
+        let householdId = getHouseholdId(isCreate);
+        let household = get(/databases/$(database)/documents/households/$(householdId));
+        return isSignedIn() && request.auth.uid == household.data.ownerUserId;
+      }
+      
+      // Check if user is the creator of this chore
+      function isCreator() {
+        return isSignedIn() && request.auth.uid == resource.data.createdByUserId;
+      }
+      
+      // Check if chore is assigned to the user
+      function isAssignedToUser() {
+        return isSignedIn() && request.auth.uid == resource.data.assignedToUserId;
+      }
+      
+      // Validate chore data
+      function isValidChore(chore) {
+        return chore.size() > 0 &&
+               chore.title is string && 
+               chore.title.size() > 0 &&
+               chore.description is string &&
+               chore.householdId is string &&
+               chore.householdId.size() > 0 &&
+               (chore.assignedToUserId == null || chore.assignedToUserId is string) &&
+               (chore.createdByUserId == null || chore.createdByUserId is string) &&
+               (chore.dueDate == null || chore.dueDate is timestamp) &&
+               chore.isCompleted is bool &&
+               chore.createdAt is timestamp &&
+               (chore.completedAt == null || chore.completedAt is timestamp) &&
+               (chore.completedByUserId == null || chore.completedByUserId is string) &&
+               chore.pointValue is number;
+      }
+      
+      // Members can read chores in their household
+      allow read: if isSignedIn() && isHouseholdMember(false);
+      
+      // Members can create chores in their household with validation
+      allow create: if isSignedIn() && 
+                     isHouseholdMember(true) && 
+                     request.resource.data.createdByUserId == request.auth.uid;
+      
+      // Members can update chores in their household with validation
+      // Allow any member of the household to update the chore
+      allow update: if isSignedIn() && isHouseholdMember(false);
+      
+      // Delete allowed if: user is household owner, user created the chore, or chore is assigned to user
+      allow delete: if isSignedIn() && (isHouseholdOwner(false) || isCreator() || isAssignedToUser());
+    }
+    
+    // Households collection - access based on membership
+    match /households/{householdId} {
+      // Check if user is a member of this household
+      function isMember() {
+        return isSignedIn() && request.auth.uid in resource.data.memberUserIds;
+      }
+      
+      // Check if user is the owner of this household
+      function isOwner() {
+        return isSignedIn() && request.auth.uid == resource.data.ownerUserId;
+      }
+      
+      // Validate household data
+      function isValidHousehold(household) {
+        return household.size() > 0 &&
+               household.name is string && 
+               household.name.size() > 0 &&
+               household.ownerUserId is string &&
+               household.ownerUserId.size() > 0 &&
+               household.memberUserIds is list &&
+               household.memberUserIds.size() > 0 &&
+               household.inviteCode is string &&
+               household.inviteCode.size() > 0 &&
+               household.createdAt is timestamp;
+      }
+      
+      // Read: allow if user is signed in (needed for invite code functionality)
+      allow read: if isSignedIn();
+      
+      // Create: allow if user is setting themselves as owner and member
+      allow create: if isSignedIn() && 
+                     request.resource.data.ownerUserId == request.auth.uid && 
+                     request.auth.uid in request.resource.data.memberUserIds &&
+                     isValidHousehold(request.resource.data);
+      
+      // Update: allow if user is already a member OR is adding themselves to the memberUserIds array
+      allow update: if isSignedIn() && (
+                     isMember() || 
+                     (request.resource.data.memberUserIds.hasAll(resource.data.memberUserIds) && 
+                      request.resource.data.memberUserIds.size() == resource.data.memberUserIds.size() + 1 &&
+                      request.auth.uid in request.resource.data.memberUserIds &&
+                      !(request.auth.uid in resource.data.memberUserIds) &&
+                      resource.data.ownerUserId == request.resource.data.ownerUserId)
+                    ) &&
+                    isValidHousehold(request.resource.data);
+      
+      // Delete: only the owner can delete a household
+      allow delete: if isSignedIn() && isOwner();
+      
+      // Chores subcollection - this provides backward compatibility if we ever use subcollections
+      match /chores/{choreId} {
+        // Validate chore data
+        function isValidSubcollectionChore(chore) {
+          return chore.size() > 0 &&
+                 chore.title is string && 
+                 chore.title.size() > 0 &&
+                 chore.description is string &&
+                 (chore.assignedToUserId == null || chore.assignedToUserId is string) &&
+                 (chore.createdByUserId == null || chore.createdByUserId is string) &&
+                 (chore.dueDate == null || chore.dueDate is timestamp) &&
+                 chore.isCompleted is bool &&
+                 chore.createdAt is timestamp &&
+                 (chore.completedAt == null || chore.completedAt is timestamp) &&
+                 (chore.completedByUserId == null || chore.completedByUserId is string) &&
+                 chore.pointValue is number;
+        }
+        
+        // Members can read chores in their household
+        allow read: if isSignedIn() && (isMember() || isOwner());
+        
+        // Members can create and update chores with validation
+        allow create: if isSignedIn() && 
+                       (isMember() || isOwner()) &&
+                       request.resource.data.createdByUserId == request.auth.uid;
+        
+        // Allow any member to update chores in their household
+        allow update: if isSignedIn() && (isMember() || isOwner());
+        
+        // Delete permissions: household owners can delete any chore, members can delete chores they created or are assigned to
+        allow delete: if isSignedIn() && (
+          isOwner() || 
+          (isMember() && request.auth.uid == resource.data.createdByUserId) ||
+          (isMember() && request.auth.uid == resource.data.assignedToUserId)
+        );
+      }
+    }
+    
+    // Deny all other access by default
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
