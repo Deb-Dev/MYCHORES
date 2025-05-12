@@ -32,7 +32,7 @@ import com.example.mychoresand.ui.utils.getValidHouseholdId
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ChoreCreateEditScreen(
-    choreId: String?, // Kept for API compatibility, but ignored
+    choreId: String?,
     onBack: () -> Unit,
     onSaveComplete: () -> Unit,
     modifier: Modifier = Modifier
@@ -79,7 +79,7 @@ fun ChoreCreateEditScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(text = "New Chore-") },
+                title = { Text(text = "New Chore") },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(
@@ -101,45 +101,24 @@ fun ChoreCreateEditScreen(
             } else {
                 ChoreEditForm(
                     chore = editableChore,
-                    onChoreChange = { updatedChore -> editableChore = updatedChore },
+                    onChoreChange = { updatedChore -> 
+                        android.util.Log.d(TAG, "Chore updated in parent. New point value: ${updatedChore.pointValue}")
+                        editableChore = updatedChore 
+                    },
                     householdMembers = householdMembers,
                     onSave = {
                         val validHouseholdIdForSave = editableChore.householdId.takeIf { it.isNotEmpty() }
-                            ?: getValidHouseholdId()
                         
                         android.util.Log.d(TAG, "Save button pressed. Household ID: $validHouseholdIdForSave")
                         android.util.Log.d(TAG, "Chore state at save: $editableChore")
-
-                        if (validHouseholdIdForSave.isEmpty()) {
-                            android.util.Log.e(TAG, "ERROR: Cannot save chore, missing valid household ID")
-                            viewModel.setError("Cannot save chore: Missing valid household")
-                            return@ChoreEditForm
-                        }
+                        android.util.Log.d(TAG, "Point value at save: ${editableChore.pointValue}")
                         
-                        // Ensure the chore has the latest valid householdId
-                        val choreToSave = editableChore.copy(householdId = validHouseholdIdForSave)
-
-                        // Create new chore
-                        viewModel.createChore(
-                            title = choreToSave.title,
-                            description = choreToSave.description,
-                            householdId = choreToSave.householdId,
-                            assignedToUserId = choreToSave.assignedToUserId,
-                            dueDate = choreToSave.dueDate,
-                            pointValue = choreToSave.pointValue,
-                            isRecurring = choreToSave.isRecurring,
-                            recurrenceType = choreToSave.recurrenceType,
-                            recurrenceInterval = choreToSave.recurrenceInterval,
-                            recurrenceDaysOfWeek = choreToSave.recurrenceDaysOfWeek,
-                            recurrenceDayOfMonth = choreToSave.recurrenceDayOfMonth,
-                            recurrenceEndDate = choreToSave.recurrenceEndDate,
-                            onComplete = { success ->
-                                android.util.Log.d(TAG, "Create chore callback: success=$success")
-                                if (success) {
-                                    onSaveComplete()
-                                }
+                        // Add code to save the chore with the viewModel
+                        viewModel.createChore(editableChore) { success ->
+                            if (success) {
+                                onSaveComplete()
                             }
-                        )
+                        }
                     },
                     onCancel = onBack
                 )

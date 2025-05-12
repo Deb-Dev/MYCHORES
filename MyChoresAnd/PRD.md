@@ -102,20 +102,3 @@ Product Requirements Document (PRD) – Android MVP
 	•	Overdue/Upcoming UI:
 	•	Highlight upcoming and overdue tasks in UI.
 	•	Settings: Notification settings and standdard options
-
-⸻
-
-Tech Stack – Android MVP
-	•	Language: Kotlin
-	•	Architecture: MVVM
-	•	UI: Jetpack Compose
-	•	Database: Firebase Firestore (real-time sync)
-	•	Authentication: Firebase Auth (email/password, Google Sign-In)
-	•	Notifications: Firebase Cloud Messaging
-	•	Task Scheduling: WorkManager (client), Cloud Functions (server)
-	•	Dependency Injection: Hilt (optional but recommended)
-	•	Image Loading: Coil
-	•	State Management: LiveData / StateFlow
-
-⸻
-

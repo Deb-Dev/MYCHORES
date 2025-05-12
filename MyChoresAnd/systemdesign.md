@@ -88,23 +88,154 @@ Various utility classes provide helper functionality:
 
 ### 3.3 Household Management Flow
 
-1. User creates/joins a household → HouseholdViewModel → HouseholdService → Firestore
-2. Household data is observed through StateFlow → UI components update automatically
+#### Initial Household Setup
+1. After authentication, the app checks if the user has any associated households
+2. If no households, user is directed to the Welcome screen presenting options to create or join a household
+3. Create Household flow: User enters household name → HouseholdViewModel.createHousehold() → HouseholdService → Firestore → User redirected to HomeScreen
+4. Join Household flow: User enters invite code → HouseholdViewModel.joinHousehold() → HouseholdService → Firestore → User redirected to HomeScreen
+
+#### Household Management
+1. Household data is observed through StateFlow → UI components update automatically
+2. User can view household details, members, and leaderboard
+
+#### Household Transition Flow
+1. User leaves household → HouseholdViewModel.leaveHousehold() → HouseholdService → Firestore
+2. HouseholdViewModel checks if user has remaining households
+3. If no households remain, user is redirected to Welcome screen
+4. If households remain, user is shown their other household(s)
 
 ## 4. State Management
 
-The app uses Kotlin's `StateFlow` for reactive state management:
+### 4.1 Reactive State with StateFlow
+
+The app uses Kotlin's `StateFlow` for reactive state management throughout the application. Each ViewModel maintains multiple StateFlow objects that represent different aspects of the application state:
 
 ```kotlin
-private val _pendingChores = MutableStateFlow<List<Chore>>(emptyList())
-val pendingChores: StateFlow<List<Chore>> = _pendingChores
+// Example from HouseholdViewModel
+private val _households = MutableStateFlow<List<Household>>(emptyList())
+val households: StateFlow<List<Household>> = _households
+
+private val _selectedHousehold = MutableStateFlow<Household?>(null)
+val selectedHousehold: StateFlow<Household?> = _selectedHousehold
+
+private val _isLoading = MutableStateFlow(false)
+val isLoading: StateFlow<Boolean> = _isLoading
+
+private val _errorMessage = MutableStateFlow<String?>(null)
+val errorMessage: StateFlow<String?> = _errorMessage
 ```
 
-UI components observe these StateFlows using `collectAsState()`:
+UI components observe these StateFlows using `collectAsState()` to automatically update the UI when the underlying data changes:
 
 ```kotlin
-val pendingChores by viewModel.pendingChores.collectAsState()
+val households by viewModel.households.collectAsState(initial = emptyList())
+val selectedHousehold by viewModel.selectedHousehold.collectAsState(initial = null)
+val isLoading by viewModel.isLoading.collectAsState(initial = false)
 ```
+
+### 4.2 State Flow Management Pattern
+
+The app follows a consistent pattern for state management:
+
+1. **Private MutableStateFlow**: Each piece of state is managed as a private `MutableStateFlow` that can only be modified by the ViewModel.
+
+2. **Public StateFlow Exposure**: A public read-only `StateFlow` is exposed for UI components to observe.
+
+3. **State Updates**: State is updated in the ViewModel, typically within coroutine scopes:
+
+```kotlin
+viewModelScope.launch {
+    _isLoading.value = true
+    try {
+        // Perform operations
+        _households.value = fetchedHouseholds
+    } catch (e: Exception) {
+        _errorMessage.value = "Error message"
+    } finally {
+        _isLoading.value = false
+    }
+}
+```
+
+### 4.3 Navigation State Management
+
+Navigation state is managed using the Navigation Component, with decision points based on authentication and user state:
+
+```kotlin
+// Define start destination based on auth state
+val startDestination = when (authState) {
+    is AuthState.Authenticated -> "home"
+    else -> "auth"
+}
+
+// Check if user has a household and navigate accordingly
+if (households.isEmpty()) {
+    LaunchedEffect(Unit) {
+        navController.navigate("welcome")
+    }
+}
+```
+
+### 4.4 User Session State
+
+The authentication state is managed through a sealed class that provides type safety and clarity:
+
+```kotlin
+sealed class AuthState {
+    object Loading : AuthState()
+    object Unauthenticated : AuthState()
+    data class Authenticated(val user: FirebaseUser) : AuthState()
+}
+```
+
+### 4.5 Callback-Based State Transitions
+
+For critical state transitions like leaving a household, the app uses callbacks to coordinate between ViewModels and navigation:
+
+```kotlin
+// Example of using callbacks for state transitions
+fun leaveHousehold(householdId: String, onComplete: ((hasHouseholds: Boolean) -> Unit)? = null) {
+    // Implementation with callback for navigation coordination
+}
+```
+
+### 4.6 Household State Diagram
+
+The following diagram illustrates the state transitions for household management:
+
+```
+┌───────────────┐     ┌────────────────┐     ┌────────────────────┐
+│               │     │                │     │                    │
+│  Authentication ────►  Check Household ────►  Has Household(s)   │
+│               │     │                │     │                    │
+└───────────────┘     └────────────────┘     └──────────┬─────────┘
+                             │                         │
+                             │ No Households          │
+                             ▼                         │
+               ┌───────────────────────────┐          │
+               │                           │          │
+               │      Welcome Screen       │◄─────────┘
+               │                           │    Leave Last Household
+               └─────────────┬─────────────┘
+                             │
+             ┌───────────────┴───────────────┐
+             │                               │
+  ┌──────────▼──────────┐        ┌──────────▼──────────┐
+  │                     │        │                     │
+  │  Create Household   │        │   Join Household    │
+  │                     │        │                     │
+  └──────────┬──────────┘        └──────────┬──────────┘
+             │                              │
+             └──────────────┬───────────────┘
+                            │
+                 ┌──────────▼──────────┐
+                 │                     │
+                 │     Home Screen     │
+                 │                     │
+                 └─────────────────────┘
+```
+
+This diagram shows how the application manages user state based on household membership, with particular emphasis on the transitions when a user has no household (either after signup or after leaving their last household).
 
 ## 5. Identified Issues and Improvement Recommendations
 
@@ -194,19 +325,51 @@ class FirestoreChoreRepository : ChoreRepository {
 
 ### 5.6 UI State Management
 
-**Current Implementation**: Mix of ViewModel state and local component state
-**Issue**: State management is inconsistent
+**Current Implementation**: The app uses a combination of StateFlow in ViewModels for application state and local state in Composables for UI-specific state. The app implements a welcome screen for users without households, with navigation based on the household state.
+
+**Strengths**:
+- Clear separation of concerns with ViewModels managing domain state
+- Reactive updates through StateFlow and collectAsState
+- Well-defined state transitions with callbacks for complex flows
+- Navigation based on user state (authenticated, has household, etc.)
+
+**Areas for Improvement**:
+- Some duplication of state tracking across ViewModels
+- Mix of StateFlow and callback approaches for state transitions
+- Complex UI state is managed with multiple independent StateFlows rather than cohesive state objects
 
 **Recommendation**:
-- Move more state to ViewModels for better testability
-- Use sealed classes for UI states
-- Implement UDF (Unidirectional Data Flow) pattern
+- Consolidate related states into cohesive state objects using sealed classes
+- Implement consistent UDF (Unidirectional Data Flow) pattern across all features
+- Create a central StateHolder for cross-cutting concerns
 
 ```kotlin
-sealed class ChoreListUiState {
-    object Loading : ChoreListUiState()
-    data class Success(val chores: List<Chore>) : ChoreListUiState()
-    data class Error(val message: String) : ChoreListUiState()
+sealed class HouseholdUiState {
+    object Loading : HouseholdUiState()
+    object NoHousehold : HouseholdUiState()
+    data class HouseholdLoaded(
+        val household: Household,
+        val members: List<User>,
+        val isOwner: Boolean
+    ) : HouseholdUiState()
+    data class Error(val message: String) : HouseholdUiState()
+}
+```
+
+**Example of a consolidated state update pattern**:
+
+```kotlin
+private val _uiState = MutableStateFlow<HouseholdUiState>(HouseholdUiState.Loading)
+val uiState: StateFlow<HouseholdUiState> = _uiState
+
+// Then in the UI:
+val state by viewModel.uiState.collectAsState()
+
+when(state) {
+    is HouseholdUiState.Loading -> LoadingIndicator()
+    is HouseholdUiState.NoHousehold -> WelcomeScreen(...)
+    is HouseholdUiState.HouseholdLoaded -> HouseholdDetails(...)
+    is HouseholdUiState.Error -> ErrorMessage(...)
 }
 ```
 
