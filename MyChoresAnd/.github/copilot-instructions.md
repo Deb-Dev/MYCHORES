@@ -5,5 +5,5 @@ Ask preplexity for any firebase, firestore or related usages to check the latest
 Follow the same architectural and stylistic patterns consistently throughout the project.
 
 We are building an android appas described in the PRD.md
-Now we are working on making the UI look good and attractive and codebase clean and maintainable.
+Now we are working on making the ProfileView with all the features and functionalities.
 Use perplexity to check the latest documentation for any libraries or frameworks you are using.

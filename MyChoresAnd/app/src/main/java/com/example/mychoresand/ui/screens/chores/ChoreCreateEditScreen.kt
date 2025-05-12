@@ -114,7 +114,20 @@ fun ChoreCreateEditScreen(
                         android.util.Log.d(TAG, "Point value at save: ${editableChore.pointValue}")
                         
                         // Add code to save the chore with the viewModel
-                        viewModel.createChore(editableChore) { success ->
+                        viewModel.createChore(
+                            title = editableChore.title,
+                            description = editableChore.description,
+                            householdId = editableChore.householdId,
+                            assignedToUserId = editableChore.assignedToUserId,
+                            dueDate = editableChore.dueDate,
+                            pointValue = editableChore.pointValue,
+                            isRecurring = editableChore.isRecurring,
+                            recurrenceType = editableChore.recurrenceType,
+                            recurrenceDaysOfWeek = editableChore.recurrenceDaysOfWeek,
+                            recurrenceDayOfMonth = editableChore.recurrenceDayOfMonth,
+                            recurrenceInterval = editableChore.recurrenceInterval,
+                            recurrenceEndDate = editableChore.recurrenceEndDate
+                        ) { success ->
                             if (success) {
                                 onSaveComplete()
                             }

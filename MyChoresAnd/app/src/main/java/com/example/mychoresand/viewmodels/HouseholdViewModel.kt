@@ -59,7 +59,7 @@ class HouseholdViewModel(
     /**
      * Load the current user
      */
-    private fun loadCurrentUser() {
+    fun loadCurrentUser() {
         viewModelScope.launch {
             val uid = authService.currentUser?.uid ?: return@launch
             
