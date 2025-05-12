@@ -13,6 +13,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.ElevatedButton
 import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -40,59 +41,69 @@ fun ProfileScreen(
     val currentUser by householdViewModel.currentUser.collectAsState(initial = null)
     var showLeaveDialog by remember { mutableStateOf(false) }
 
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(16.dp)
-            .verticalScroll(rememberScrollState()), // Added for scrollability
-        horizontalAlignment = Alignment.CenterHorizontally,
-        // verticalArrangement = Arrangement.Center // Removed to allow content to flow from top
+    androidx.compose.material3.Surface(
+        modifier = modifier.fillMaxSize(),
+        color = MaterialTheme.colorScheme.background
     ) {
-        Text("Profile Screen", style = MaterialTheme.typography.headlineMedium)
-        Spacer(modifier = Modifier.height(32.dp))
-
-        // Display Household Settings if a household is selected
-        selectedHousehold?.let {
-            HouseholdSettingsContent( // New composable for household settings
-                household = it,
-                isCreator = it.ownerUserId == currentUser?.id,
-                onLeaveHousehold = { showLeaveDialog = true }
+        Column(
+            modifier = Modifier
+                .verticalScroll(rememberScrollState())
+                .padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = "Profile Screen",
+                style = MaterialTheme.typography.headlineMedium, // Updated typography for better hierarchy
+                color = MaterialTheme.colorScheme.onBackground
             )
-        }
+            Spacer(modifier = Modifier.height(24.dp)) // Adjusted spacing for better aesthetics
 
-        Spacer(modifier = Modifier.height(32.dp))
+            selectedHousehold?.let {
+                HouseholdSettingsContent(
+                    household = it,
+                    isCreator = it.ownerUserId == currentUser?.id,
+                    onLeaveHousehold = { showLeaveDialog = true }
+                )
+            }
 
-        Button(onClick = onSignOut) {
-            Text("Sign Out")
-        }
+            Spacer(modifier = Modifier.height(24.dp)) // Adjusted spacing for consistency
 
-        if (showLeaveDialog) {
-            AlertDialog(
-                onDismissRequest = { showLeaveDialog = false },
-                title = { Text("Leave Household?") },
-                text = { Text("Are you sure you want to leave this household? You will lose access to all chores and data related to this household.") },
-                confirmButton = {
-                    TextButton(
-                        onClick = {
-                            selectedHousehold?.let { household ->
-                                household.id?.let { householdId ->
-                                    householdViewModel.leaveHousehold(householdId)
-                                    showLeaveDialog = false
+            ElevatedButton(onClick = onSignOut) {
+                Text(
+                    text = "Sign Out",
+                    style = MaterialTheme.typography.bodyLarge, // Updated typography for button text
+                    color = MaterialTheme.colorScheme.onPrimary
+                )
+            }
+
+            if (showLeaveDialog) {
+                AlertDialog(
+                    onDismissRequest = { showLeaveDialog = false },
+                    title = { Text("Leave Household?") },
+                    text = { Text("Are you sure you want to leave this household? You will lose access to all chores and data related to this household.") },
+                    confirmButton = {
+                        TextButton(
+                            onClick = {
+                                selectedHousehold?.let { household ->
+                                    household.id?.let { householdId ->
+                                        householdViewModel.leaveHousehold(householdId)
+                                        showLeaveDialog = false
+                                    }
                                 }
                             }
+                        ) {
+                            Text("Leave")
                         }
-                    ) {
-                        Text("Leave")
+                    },
+                    dismissButton = {
+                        TextButton(
+                            onClick = { showLeaveDialog = false }
+                        ) {
+                            Text("Cancel")
+                        }
                     }
-                },
-                dismissButton = {
-                    TextButton(
-                        onClick = { showLeaveDialog = false }
-                    ) {
-                        Text("Cancel")
-                    }
-                }
-            )
+                )
+            }
         }
     }
 }
@@ -109,10 +120,10 @@ fun HouseholdSettingsContent(
             .fillMaxWidth()
             .padding(vertical = 16.dp)
     ) {
-        // Household information
         Text(
             text = "Household Information",
             style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onBackground,
             modifier = Modifier.padding(bottom = 8.dp)
         )
 
@@ -129,11 +140,13 @@ fun HouseholdSettingsContent(
                 Text(
                     text = "Household Name: ${household.name}",
                     style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.padding(bottom = 8.dp)
                 )
                 Text(
                     text = "Created On: ${household.createdAt}",
                     style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.padding(bottom = 8.dp)
                 )
 
@@ -147,7 +160,6 @@ fun HouseholdSettingsContent(
             }
         }
 
-        // Leave household option
         Text(
             text = "Danger Zone",
             style = MaterialTheme.typography.titleMedium,
@@ -176,15 +188,16 @@ fun HouseholdSettingsContent(
                 Text(
                     text = "This will remove you from the household and you will lose access to all chores and data.",
                     style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.padding(bottom = 16.dp)
                 )
 
-                PrimaryButton(
-                    text = "Leave Household",
+                ElevatedButton(
                     onClick = onLeaveHousehold,
-                    isFullWidth = true,
-                    // Optional: Add error color styling to the button if desired
-                )
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Leave Household")
+                }
             }
         }
     }

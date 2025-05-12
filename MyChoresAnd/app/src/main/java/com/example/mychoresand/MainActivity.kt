@@ -26,7 +26,9 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         
         setContent {
-            MyChoresTheme {
+            MyChoresTheme(
+                dynamicColor = true // Enable dynamic theming
+            ) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background

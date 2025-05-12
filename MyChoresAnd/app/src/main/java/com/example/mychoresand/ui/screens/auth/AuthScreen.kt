@@ -39,6 +39,10 @@ import com.example.mychoresand.ui.components.MessageType
 import com.example.mychoresand.ui.components.PrimaryButton
 import com.example.mychoresand.viewmodels.AuthState
 import android.util.Patterns
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.modifier.modifierLocalConsumer
 
 /**
  * Authentication screen with login and register tabs
@@ -60,28 +64,32 @@ fun AuthScreen(
     }
     
     Surface(
-        modifier = modifier.fillMaxSize(),
+        modifier = modifier
+            .fillMaxSize()
+            .imePadding(), // Retain imePadding for keyboard adjustments
         color = MaterialTheme.colorScheme.background
     ) {
-        Column(
-            modifier = Modifier.fillMaxSize()
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center // Center the content
         ) {
-            // Error message bar
-            errorMessage?.let {
-                MessageBar(
-                    message = it,
-                    type = MessageType.ERROR,
-                    onDismiss = { viewModel.clearError() }
-                )
-            }
-            
-            // Authentication forms
-            Box(
+            Column(
                 modifier = Modifier
                     .fillMaxSize()
+                    .verticalScroll(rememberScrollState()) // Keep verticalScroll for scrollable content
                     .padding(16.dp),
-                contentAlignment = Alignment.Center
+                horizontalAlignment = Alignment.CenterHorizontally // Ensure horizontal alignment
             ) {
+                // Error message bar
+                errorMessage?.let {
+                    MessageBar(
+                        message = it,
+                        type = MessageType.ERROR,
+                        onDismiss = { viewModel.clearError() }
+                    )
+                }
+
+                // Authentication forms
                 if (authState is AuthState.Loading) {
                     LoadingIndicator(fullscreen = true)
                 } else {

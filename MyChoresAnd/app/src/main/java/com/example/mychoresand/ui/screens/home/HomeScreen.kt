@@ -89,14 +89,16 @@ fun ScreenPlaceholder(
     Column(modifier = modifier) {
         Text(
             text = "$title Screen",
-            style = MaterialTheme.typography.headlineMedium,
+            style = MaterialTheme.typography.headlineMedium, // Updated typography for better hierarchy
+            color = MaterialTheme.colorScheme.onBackground, // Ensure proper contrast
             textAlign = TextAlign.Center,
             modifier = Modifier.padding(vertical = 16.dp)
         )
         
         Text(
             text = "This screen is under construction",
-            style = MaterialTheme.typography.bodyLarge,
+            style = MaterialTheme.typography.bodyLarge, // Updated typography for better readability
+            color = MaterialTheme.colorScheme.onSurface, // Ensure proper contrast
             textAlign = TextAlign.Center
         )
     }

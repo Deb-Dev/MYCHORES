@@ -47,24 +47,27 @@ fun ChoreDetailView(
         Text(
             text = chore.title,
             style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.Bold
+            color = MaterialTheme.colorScheme.onBackground // Ensure proper contrast
         )
         
         Spacer(modifier = Modifier.height(16.dp))
         
         if (chore.description.isNotEmpty()) {
             Card(
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text(
                         text = "Description",
-                        style = MaterialTheme.typography.titleMedium
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                     
                     Text(
                         text = chore.description,
                         style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier.padding(top = 8.dp)
                     )
                 }
@@ -74,12 +77,14 @@ fun ChoreDetailView(
         }
         
         Card(
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
         ) {
             Column(modifier = Modifier.padding(16.dp)) {
                 Text(
                     text = "Details",
-                    style = MaterialTheme.typography.titleMedium
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface
                 )
                 
                 Spacer(modifier = Modifier.height(8.dp))
@@ -99,35 +104,6 @@ fun ChoreDetailView(
                         label = "Due date",
                         value = dateFormat.format(chore.dueDate!!)
                     )
-                }
-                
-                if (chore.isRecurring) {
-                    val recurrenceText = when (chore.recurrenceType) {
-                        Chore.RecurrenceType.DAILY -> "Daily"
-                        Chore.RecurrenceType.WEEKLY -> "Weekly"
-                        Chore.RecurrenceType.MONTHLY -> "Monthly"
-                        null -> "None"
-                    }
-                    
-                    DetailRow(
-                        label = "Recurrence",
-                        value = recurrenceText
-                    )
-                }
-                
-                if (chore.isCompleted && chore.completedAt != null) {
-                    DetailRow(
-                        label = "Completed",
-                        value = dateFormat.format(chore.completedAt!!)
-                    )
-                    
-                    val completedBy = householdMembers.find { it.id == chore.completedByUserId }
-                    if (completedBy != null) {
-                        DetailRow(
-                            label = "Completed by",
-                            value = completedBy.displayName
-                        )
-                    }
                 }
             }
         }

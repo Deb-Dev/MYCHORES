@@ -118,7 +118,6 @@ fun HouseholdHomeScreen(
 
     // Fix: Updated property names to match iOS implementation
     val householdMembers by viewModel.householdMembers.collectAsState(initial = emptyList<User>())
-    val currentUser by viewModel.currentUser.collectAsState(initial = null)
     val isLoading by viewModel.isLoading.collectAsState(initial = false)
 
     Surface(
@@ -133,22 +132,20 @@ fun HouseholdHomeScreen(
         ) {
             Text(
                 text = "Household",
-                style = MaterialTheme.typography.headlineLarge,
-                modifier = Modifier.padding(bottom = 16.dp)
+                style = MaterialTheme.typography.headlineLarge, // Updated typography for better hierarchy
+                color = MaterialTheme.colorScheme.onBackground
             )
+            Spacer(modifier = Modifier.height(24.dp)) // Adjusted spacing for better aesthetics
 
             if (isLoading) {
                 LoadingIndicator(fullscreen = true)
             } else {
                 if (selectedHousehold != null) {
-                    // Display household details
                     HouseholdDetails(
                         household = selectedHousehold!!,
-                        members = householdMembers,
-                        currentUser = currentUser
+                        members = householdMembers
                     )
                 } else {
-                    // Show options to create or join household
                     NoHouseholdView(
                         onCreateHousehold = onCreateHousehold,
                         onJoinHousehold = onJoinHousehold
@@ -221,7 +218,6 @@ fun NoHouseholdView(
 fun HouseholdDetails(
     household: Household,
     members: List<User>,
-    currentUser: User?,
     modifier: Modifier = Modifier
 ) {
     val clipboardManager = LocalClipboardManager.current

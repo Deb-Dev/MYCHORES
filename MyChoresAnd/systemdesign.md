@@ -250,7 +250,18 @@ Improve offline support using:
 - Implement proper token refresh mechanisms
 - Add request/response encryption for sensitive data
 
-## 7. Conclusion
+## 7. App Signing
+
+### Keystore Details
+- **Keystore Name**: `my-chore-release-key.keystore`
+- **Alias**: `my-chore-key-alias`
+- **Key Algorithm**: RSA
+- **Key Size**: 2048 bits
+- **Validity**: 10,000 days
+
+The keystore is used to sign the APK for release builds, ensuring the authenticity and integrity of the app. It is critical to keep the keystore file and its credentials secure, as losing them can prevent future updates to the app.
+
+## 8. Conclusion
 
 The MyChores Android app has a solid foundation with a clean MVVM architecture and modern Android development practices. By implementing the suggested improvements, particularly around dependency injection, error handling, and testability, the app can become more maintainable and robust for future development.
 
