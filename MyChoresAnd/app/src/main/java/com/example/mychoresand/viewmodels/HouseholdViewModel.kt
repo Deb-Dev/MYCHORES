@@ -244,7 +244,7 @@ class HouseholdViewModel(
     /**
      * Leave a household
      */
-    fun leaveHousehold(householdId: String) {
+    fun leaveHousehold(householdId: String, onComplete: ((hasHouseholds: Boolean) -> Unit)? = null) {
         viewModelScope.launch {
             _isLoading.value = true
             _errorMessage.value = null
@@ -254,17 +254,24 @@ class HouseholdViewModel(
                 
                 result.fold(
                     onSuccess = {
-                        // Reload households to get updated list
-                        loadHouseholds()
-                        
                         // Clear selected household if it was the one we left
                         if (_selectedHousehold.value?.id == householdId) {
                             _selectedHousehold.value = null
                             // Clear current household ID from preferences
                             AppContainer.preferencesManager.remove(PreferencesManager.KEY_CURRENT_HOUSEHOLD_ID)
                         }
+                        
+                        // Reload households to get updated list and check if any remain
+                        householdService.getUserHouseholds().collect { updatedHouseholds ->
+                            _households.value = updatedHouseholds
+                            // Notify caller if user has any households left
+                            onComplete?.invoke(updatedHouseholds.isNotEmpty())
+                            _isLoading.value = false
+                        }
                     },
                     onFailure = { e ->
+                        _isLoading.value = false
+                        onComplete?.invoke(_households.value.isNotEmpty())
                         throw e
                     }
                 )
@@ -272,6 +279,8 @@ class HouseholdViewModel(
                 Log.e(TAG, "Error leaving household: ${e.message}", e)
                 _errorMessage.value = "Failed to leave household: ${e.message}"
                 _isLoading.value = false
+                // Call callback with current household state in case of error
+                onComplete?.invoke(_households.value.isNotEmpty())
             }
         }
     }

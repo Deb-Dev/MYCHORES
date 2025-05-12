@@ -34,6 +34,7 @@ import com.example.mychoresand.ui.components.PrimaryButton
 @Composable
 fun ProfileScreen(
     onSignOut: () -> Unit,
+    onNavigateToWelcome: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val householdViewModel = AppContainer.householdViewModel
@@ -86,8 +87,13 @@ fun ProfileScreen(
                             onClick = {
                                 selectedHousehold?.let { household ->
                                     household.id?.let { householdId ->
-                                        householdViewModel.leaveHousehold(householdId)
-                                        showLeaveDialog = false
+                                        householdViewModel.leaveHousehold(householdId) { hasHouseholds ->
+                                            showLeaveDialog = false
+                                            // If user has no households left, navigate to welcome screen
+                                            if (!hasHouseholds) {
+                                                onNavigateToWelcome?.invoke()
+                                            }
+                                        }
                                     }
                                 }
                             }

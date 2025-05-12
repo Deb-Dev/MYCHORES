@@ -71,6 +71,7 @@ import com.example.mychoresand.ui.screens.leaderboard.LeaderboardContent // Impo
 @Composable
 fun HouseholdScreen(
     onSignOut: () -> Unit,
+    onNavigateToWelcome: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val navController = rememberNavController()
@@ -84,6 +85,7 @@ fun HouseholdScreen(
                 onCreateHousehold = { navController.navigate("create_household") },
                 onJoinHousehold = { navController.navigate("join_household") },
                 onSignOut = onSignOut,
+                onNavigateToWelcome = onNavigateToWelcome,
                 modifier = modifier
             )
         }
@@ -110,6 +112,7 @@ fun HouseholdHomeScreen(
     onCreateHousehold: () -> Unit,
     onJoinHousehold: () -> Unit,
     onSignOut: () -> Unit,
+    onNavigateToWelcome: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val viewModel = AppContainer.householdViewModel
@@ -141,10 +144,44 @@ fun HouseholdHomeScreen(
                 LoadingIndicator(fullscreen = true)
             } else {
                 if (selectedHousehold != null) {
+                    var showLeaveDialog by remember { mutableStateOf(false) }
+                    
                     HouseholdDetails(
                         household = selectedHousehold!!,
-                        members = householdMembers
+                        members = householdMembers,
+                        onLeaveHousehold = { showLeaveDialog = true }
                     )
+                    
+                    if (showLeaveDialog) {
+                        AlertDialog(
+                            onDismissRequest = { showLeaveDialog = false },
+                            title = { Text("Leave Household?") },
+                            text = { Text("Are you sure you want to leave this household? You will lose access to all chores and data related to this household.") },
+                            confirmButton = {
+                                TextButton(
+                                    onClick = {
+                                        selectedHousehold?.id?.let { householdId ->
+                                            viewModel.leaveHousehold(householdId) { hasHouseholds ->
+                                                showLeaveDialog = false
+                                                if (!hasHouseholds) {
+                                                    onNavigateToWelcome()
+                                                }
+                                            }
+                                        }
+                                    }
+                                ) {
+                                    Text("Leave")
+                                }
+                            },
+                            dismissButton = {
+                                TextButton(
+                                    onClick = { showLeaveDialog = false }
+                                ) {
+                                    Text("Cancel")
+                                }
+                            }
+                        )
+                    }
                 } else {
                     NoHouseholdView(
                         onCreateHousehold = onCreateHousehold,
@@ -218,6 +255,7 @@ fun NoHouseholdView(
 fun HouseholdDetails(
     household: Household,
     members: List<User>,
+    onLeaveHousehold: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val clipboardManager = LocalClipboardManager.current
@@ -293,6 +331,18 @@ fun HouseholdDetails(
         when (tabIndex) {
             0 -> MembersTab(members = members)
             1 -> LeaderboardContent(modifier = Modifier.fillMaxSize())
+        }
+        
+        Spacer(modifier = Modifier.height(16.dp))
+        
+        // Leave household button
+        if (onLeaveHousehold != null) {
+            SecondaryButton(
+                text = "Leave Household",
+                onClick = { onLeaveHousehold() },
+                isFullWidth = true,
+                modifier = Modifier.padding(vertical = 8.dp)
+            )
         }
     }
 }
@@ -381,6 +431,7 @@ fun MemberItem(
 @Composable
 fun CreateHouseholdScreen(
     onBack: () -> Unit,
+    onHouseholdCreated: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val viewModel = AppContainer.householdViewModel
@@ -427,10 +478,13 @@ fun CreateHouseholdScreen(
                 onClick = {
                     if (householdName.isNotBlank()) {
                         isCreating = true
-                        // Fix the method signature to match what's available in the ViewModel
-                        viewModel.createHousehold(householdName)
-                        isCreating = false
-                        onBack()
+                        // Use callback to navigate after creation
+                        viewModel.createHousehold(householdName, "") { result ->
+                            isCreating = false
+                            if (result.isSuccess) {
+                                onHouseholdCreated()
+                            }
+                        }
                     }
                 },
                 enabled = householdName.isNotBlank() && !isCreating,
@@ -447,6 +501,7 @@ fun CreateHouseholdScreen(
 @Composable
 fun JoinHouseholdScreen(
     onBack: () -> Unit,
+    onHouseholdJoined: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val viewModel = AppContainer.householdViewModel
@@ -500,10 +555,13 @@ fun JoinHouseholdScreen(
                 onClick = {
                     if (inviteCode.isNotBlank()) {
                         isJoining = true
-                        // Fix the method signature to match what's available in the ViewModel
-                        viewModel.joinHousehold(inviteCode)
-                        isJoining = false
-                        onBack()
+                        // Use callback to navigate after joining
+                        viewModel.joinHousehold(inviteCode) { result ->
+                            isJoining = false
+                            if (result.isSuccess) {
+                                onHouseholdJoined()
+                            }
+                        }
                     }
                 },
                 enabled = inviteCode.isNotBlank() && !isJoining,

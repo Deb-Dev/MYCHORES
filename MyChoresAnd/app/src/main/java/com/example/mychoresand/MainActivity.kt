@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
@@ -17,8 +18,12 @@ import androidx.navigation.compose.rememberNavController
 import com.example.mychoresand.di.AppContainer
 import com.example.mychoresand.ui.screens.auth.AuthScreen
 import com.example.mychoresand.ui.screens.home.HomeScreen
+import com.example.mychoresand.ui.screens.household.CreateHouseholdScreen
+import com.example.mychoresand.ui.screens.household.JoinHouseholdScreen
+import com.example.mychoresand.ui.screens.welcome.WelcomeScreen
 import com.example.mychoresand.ui.theme.MyChoresTheme
 import com.example.mychoresand.viewmodels.AuthState
+import androidx.compose.material3.Text
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -47,7 +52,9 @@ class MainActivity : ComponentActivity() {
 fun MyChoresApp() {
     val navController = rememberNavController()
     val authViewModel = AppContainer.authViewModel
+    val householdViewModel = AppContainer.householdViewModel
     val authState by authViewModel.authState.collectAsState()
+    val households by householdViewModel.households.collectAsState(initial = emptyList())
     
     // Define start destination based on auth state
     val startDestination = when (authState) {
@@ -66,15 +73,63 @@ fun MyChoresApp() {
             )
         }
         
-        composable("home") {
-            HomeScreen(
-                onSignOut = {
-                    authViewModel.signOut()
-                    navController.navigate("auth") {
-                        popUpTo("home") { inclusive = true }
+        composable("welcome") {
+            WelcomeScreen(
+                onCreateHousehold = {
+                    navController.navigate("create_household")
+                },
+                onJoinHousehold = {
+                    navController.navigate("join_household")
+                }
+            )
+        }
+        
+        composable("create_household") {
+            CreateHouseholdScreen(
+                onBack = { navController.navigateUp() },
+                onHouseholdCreated = {
+                    navController.navigate("home") {
+                        popUpTo("welcome") { inclusive = true }
                     }
                 }
             )
+        }
+        
+        composable("join_household") {
+            JoinHouseholdScreen(
+                onBack = { navController.navigateUp() },
+                onHouseholdJoined = {
+                    navController.navigate("home") {
+                        popUpTo("welcome") { inclusive = true }
+                    }
+                }
+            )
+        }
+        
+        composable("home") {
+            // Check if user has a household
+            if (households.isEmpty()) {
+                // Navigate to welcome screen if user has no households
+                LaunchedEffect(Unit) {
+                    navController.navigate("welcome") {
+                        popUpTo("home") { inclusive = true }
+                    }
+                }
+            } else {
+                HomeScreen(
+                    onSignOut = {
+                        authViewModel.signOut()
+                        navController.navigate("auth") {
+                            popUpTo("home") { inclusive = true }
+                        }
+                    },
+                    onNavigateToWelcome = {
+                        navController.navigate("welcome") {
+                            popUpTo("home") { inclusive = true }
+                        }
+                    }
+                )
+            }
         }
     }
 }

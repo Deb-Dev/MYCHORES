@@ -46,6 +46,7 @@ enum class HomeTab(val title: String, val icon: ImageVector) {
 @Composable
 fun HomeScreen(
     onSignOut: () -> Unit,
+    onNavigateToWelcome: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     var currentTab by remember { mutableStateOf(HomeTab.CHORES) }
@@ -70,9 +71,15 @@ fun HomeScreen(
         ) {
             when (currentTab) {
                 HomeTab.CHORES -> ChoresScreen()
-                HomeTab.HOUSEHOLD -> HouseholdScreen(onSignOut = onSignOut)
+                HomeTab.HOUSEHOLD -> HouseholdScreen(
+                    onSignOut = onSignOut,
+                    onNavigateToWelcome = onNavigateToWelcome
+                )
                 HomeTab.ACHIEVEMENTS -> AchievementsScreen()
-                HomeTab.PROFILE -> ProfileScreen(onSignOut = onSignOut)
+                HomeTab.PROFILE -> ProfileScreen(
+                    onSignOut = onSignOut,
+                    onNavigateToWelcome = onNavigateToWelcome
+                )
             }
         }
     }
