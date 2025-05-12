@@ -66,6 +66,7 @@ import java.util.Locale
 fun ProfileScreen(
     onSignOut: () -> Unit,
     onNavigateToWelcome: (() -> Unit)? = null,
+    onNavigateToPrivacy: () -> Unit,
     onEditProfile: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
@@ -274,7 +275,7 @@ fun ProfileScreen(
                             icon = Icons.Default.Lock,
                             iconTint = MaterialTheme.colorScheme.primary,
                             title = "Privacy",
-                            onClick = { /* Navigate to privacy settings */ }
+                            onClick = onNavigateToPrivacy
                         )
                         
                         // Help & Support

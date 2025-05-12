@@ -4,7 +4,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Assignment
+import androidx.compose.material.icons.automirrored.filled.Assignment
 import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.People
@@ -34,7 +34,7 @@ import androidx.compose.ui.unit.dp
  * Tabs for the main navigation
  */
 enum class HomeTab(val title: String, val icon: ImageVector) {
-    CHORES("Chores", Icons.Default.Assignment),
+    CHORES("Chores", Icons.AutoMirrored.Filled.Assignment),
     HOUSEHOLD("Household", Icons.Default.People),
     ACHIEVEMENTS("Achievements", Icons.Default.EmojiEvents),
     PROFILE("Profile", Icons.Default.Person)
@@ -47,6 +47,7 @@ enum class HomeTab(val title: String, val icon: ImageVector) {
 fun HomeScreen(
     onSignOut: () -> Unit,
     onNavigateToWelcome: () -> Unit = {},
+    onNavigateToPrivacy: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     var currentTab by remember { mutableStateOf(HomeTab.CHORES) }
@@ -78,7 +79,8 @@ fun HomeScreen(
                 HomeTab.ACHIEVEMENTS -> AchievementsScreen()
                 HomeTab.PROFILE -> ProfileScreen(
                     onSignOut = onSignOut,
-                    onNavigateToWelcome = onNavigateToWelcome
+                    onNavigateToWelcome = onNavigateToWelcome,
+                    onNavigateToPrivacy = onNavigateToPrivacy
                 )
             }
         }

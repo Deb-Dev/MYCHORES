@@ -22,6 +22,7 @@ import com.example.mychoresand.ui.screens.household.CreateHouseholdScreen
 import com.example.mychoresand.ui.screens.household.JoinHouseholdScreen
 import com.example.mychoresand.ui.screens.welcome.WelcomeScreen
 import com.example.mychoresand.ui.theme.MyChoresTheme
+import com.example.mychoresand.ui.screens.profile.PrivacySettingsScreen
 import com.example.mychoresand.viewmodels.AuthState
 import androidx.compose.material3.Text
 
@@ -55,10 +56,15 @@ fun MyChoresApp() {
     val householdViewModel = AppContainer.householdViewModel
     val authState by authViewModel.authState.collectAsState()
     val households by householdViewModel.households.collectAsState(initial = emptyList())
+    // Track whether households are still loading to avoid premature navigation
+    val isLoadingHouseholds by householdViewModel.isLoading.collectAsState(initial = true)
     
-    // Define start destination based on auth state
-    val startDestination = when (authState) {
-        is AuthState.Authenticated -> "home"
+    // Determine if user previously selected a household
+    val savedHouseholdId = AppContainer.preferencesManager.getSelectedHouseholdId()
+    // Define start destination based on auth state and saved household
+    val startDestination = when {
+        authState is AuthState.Authenticated && !savedHouseholdId.isNullOrEmpty() -> "home"
+        authState is AuthState.Authenticated -> "welcome"
         else -> "auth"
     }
     
@@ -105,11 +111,16 @@ fun MyChoresApp() {
                 }
             )
         }
+        // Privacy Settings
+        composable("privacy_settings") {
+            PrivacySettingsScreen(
+                onBack = { navController.navigateUp() }
+            )
+        }
         
         composable("home") {
-            // Check if user has a household
-            if (households.isEmpty()) {
-                // Navigate to welcome screen if user has no households
+            // Only navigate to welcome after households finish loading and no household exists
+            if (!isLoadingHouseholds && households.isEmpty()) {
                 LaunchedEffect(Unit) {
                     navController.navigate("welcome") {
                         popUpTo("home") { inclusive = true }
@@ -127,6 +138,9 @@ fun MyChoresApp() {
                         navController.navigate("welcome") {
                             popUpTo("home") { inclusive = true }
                         }
+                    },
+                    onNavigateToPrivacy = {
+                        navController.navigate("privacy_settings")
                     }
                 )
             }

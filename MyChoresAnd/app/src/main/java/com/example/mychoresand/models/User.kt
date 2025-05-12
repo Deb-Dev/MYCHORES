@@ -69,7 +69,7 @@ data class User(
             privacySettings = UserPrivacySettings(
                 showProfile = true, 
                 showAchievements = true,
-                showPoints = true
+                shareActivity = true
             )
         )
     }
@@ -81,5 +81,5 @@ data class User(
 data class UserPrivacySettings(
     var showProfile: Boolean = true,
     var showAchievements: Boolean = true,
-    var showPoints: Boolean = true
+    var shareActivity: Boolean = true
 )

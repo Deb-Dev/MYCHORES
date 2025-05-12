@@ -90,17 +90,23 @@ class HouseholdViewModel(
                 // Use the flow-based API
                 householdService.getUserHouseholds().collect { fetchedHouseholds ->
                     _households.value = fetchedHouseholds
-                    
-                    // If we only have one household, select it automatically
-                    if (fetchedHouseholds.size == 1) {
-                        _selectedHousehold.value = fetchedHouseholds.first()
-                        fetchedHouseholds.first().id?.let { householdId ->
+
+                    // Try to restore previously selected household from prefs
+                    val savedId = AppContainer.preferencesManager.getSelectedHouseholdId()
+                    // If savedId matches a fetched household, select that; otherwise if only one, auto-select
+                    val toSelect = when {
+                        !savedId.isNullOrEmpty() -> fetchedHouseholds.find { it.id == savedId }
+                        fetchedHouseholds.size == 1 -> fetchedHouseholds.first()
+                        else -> null
+                    }
+                    toSelect?.let { household ->
+                        _selectedHousehold.value = household
+                        household.id?.let { householdId ->
+                            // Save current household ID to prefs
+                            AppContainer.preferencesManager.saveSelectedHouseholdId(householdId)
+                            // Load related data
                             loadHouseholdMembers(householdId)
-                            // Save current household ID to preferences
-                            AppContainer.preferencesManager.saveString(
-                                PreferencesManager.KEY_CURRENT_HOUSEHOLD_ID, 
-                                householdId
-                            )
+                            AppContainer.choreViewModel.loadHouseholdChores(householdId)
                         }
                     }
                     
@@ -170,10 +176,8 @@ class HouseholdViewModel(
                         
                         // Save current household ID to preferences
                         household.id?.let { householdId ->
-                            AppContainer.preferencesManager.saveString(
-                                PreferencesManager.KEY_CURRENT_HOUSEHOLD_ID, 
-                                householdId
-                            )
+                            // Persist selected household ID
+                            AppContainer.preferencesManager.saveSelectedHouseholdId(householdId)
                             // Load members for the new household
                             loadHouseholdMembers(householdId)
                         }
