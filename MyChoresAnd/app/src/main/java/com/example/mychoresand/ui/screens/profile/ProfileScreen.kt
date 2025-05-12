@@ -20,11 +20,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.EmojiEvents
-import androidx.compose.material.icons.filled.Help
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.Logout
+import androidx.compose.material.icons.automirrored.filled.Help
+import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.AlertDialog
@@ -32,7 +32,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Divider
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.ElevatedButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -169,6 +169,132 @@ fun ProfileScreen(
                     }
                 }
                 
+                // User Statistics Card
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 16.dp),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp)
+                    ) {
+                        Text(
+                            text = "Your Statistics",
+                            style = MaterialTheme.typography.titleLarge,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.padding(bottom = 16.dp)
+                        )
+                        
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            // Total Points
+                            StatisticItem(
+                                icon = Icons.Default.Star,
+                                iconBackground = MaterialTheme.colorScheme.primaryContainer,
+                                value = user.totalPoints.toString(),
+                                label = "Total Points",
+                                modifier = Modifier.weight(1f)
+                            )
+                            
+                            // Badges Earned
+                            StatisticItem(
+                                icon = Icons.Default.EmojiEvents,
+                                iconBackground = MaterialTheme.colorScheme.tertiaryContainer,
+                                value = user.earnedBadgeIds.size.toString(),
+                                label = "Badges Earned",
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                        
+                        Spacer(modifier = Modifier.height(16.dp))
+                        
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            // Households Count
+                            StatisticItem(
+                                icon = Icons.Default.Home,
+                                iconBackground = MaterialTheme.colorScheme.secondaryContainer,
+                                value = userHouseholds.size.toString(),
+                                label = "Households",
+                                modifier = Modifier.weight(1f)
+                            )
+                            
+                            // Member Since
+                            val memberSince = user.createdAt.let {
+                                val formatter = SimpleDateFormat("MMM yyyy", Locale.getDefault())
+                                formatter.format(it)
+                            }
+                            StatisticItem(
+                                icon = Icons.Default.DateRange,
+                                iconBackground = MaterialTheme.colorScheme.surfaceVariant,
+                                value = memberSince,
+                                label = "Member Since",
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                    }
+                }
+                
+                // Settings Card
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 16.dp),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp)
+                    ) {
+                        Text(
+                            text = "Settings",
+                            style = MaterialTheme.typography.titleLarge,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            modifier = Modifier.padding(bottom = 16.dp)
+                        )
+                        
+                        // Notifications Setting
+                        SettingsItem(
+                            icon = Icons.Default.Notifications,
+                            iconTint = MaterialTheme.colorScheme.primary,
+                            title = "Notifications",
+                            onClick = { /* Navigate to notifications settings */ }
+                        )
+                        
+                        // Privacy Settings
+                        SettingsItem(
+                            icon = Icons.Default.Lock,
+                            iconTint = MaterialTheme.colorScheme.primary,
+                            title = "Privacy",
+                            onClick = { /* Navigate to privacy settings */ }
+                        )
+                        
+                        // Help & Support
+                        SettingsItem(
+                            icon = Icons.AutoMirrored.Filled.Help,
+                            iconTint = MaterialTheme.colorScheme.primary,
+                            title = "Help & Support",
+                            onClick = { /* Navigate to help & support */ }
+                        )
+                        
+                        // About
+                        SettingsItem(
+                            icon = Icons.Default.Info,
+                            iconTint = MaterialTheme.colorScheme.primary,
+                            title = "About",
+                            onClick = { /* Navigate to about screen */ }
+                        )
+                    }
+                }
+                
                 // Sign out button
                 Button(
                     onClick = { showSignOutDialog = true },
@@ -181,7 +307,7 @@ fun ProfileScreen(
                         .padding(vertical = 8.dp)
                 ) {
                     Icon(
-                        imageVector = Icons.Default.Logout,
+                        imageVector = Icons.AutoMirrored.Filled.Logout,
                         contentDescription = null,
                         modifier = Modifier.size(18.dp)
                     )
@@ -440,7 +566,7 @@ fun SettingsItem(
         }
         
         // Divider
-        Divider(
+        HorizontalDivider(
             color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f),
             thickness = 1.dp
         )
