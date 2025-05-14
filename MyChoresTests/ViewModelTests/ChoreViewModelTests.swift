@@ -28,9 +28,8 @@ class ChoreViewModelTests: XCTestCase {
         // SUT is initialized here for general tests, but specific init tests will re-initialize.
         sut = ChoreViewModel(
             householdId: testHouseholdId,
-            choreService: mockChoreService,
-            userService: mockUserService,
-            authService: mockAuthService
+            authService: mockAuthService, choreService: mockChoreService,
+            userService: mockUserService
         )
         cancellables = []
     }
@@ -54,9 +53,8 @@ class ChoreViewModelTests: XCTestCase {
         // Re-initialize SUT for this specific test
         sut = ChoreViewModel(
             householdId: testHouseholdId,
-            choreService: mockChoreService,
-            userService: mockUserService,
-            authService: mockAuthService
+            authService: mockAuthService, choreService: mockChoreService,
+            userService: mockUserService
         )
 
         wait(for: [expectation], timeout: 1.0)
@@ -79,9 +77,8 @@ class ChoreViewModelTests: XCTestCase {
         sut = ChoreViewModel(
             householdId: testHouseholdId,
             choreId: specificChoreId,
-            choreService: mockChoreService,
-            userService: mockUserService,
-            authService: mockAuthService
+            authService: mockAuthService, choreService: mockChoreService,
+            userService: mockUserService
         )
 
         wait(for: [fetchChoresExp, fetchChoreExp], timeout: 1.0)
@@ -157,7 +154,7 @@ class ChoreViewModelTests: XCTestCase {
     @MainActor
     func testLoadChore_Success_SetsSelectedChore() async {
         let specificChoreId = "chore-abc"
-        let expectedChore = Chore(id: specificChoreId, title: "Specific Chore", householdId: testHouseholdId, createdByUserId: "creator")
+        let expectedChore = Chore(title: specificChoreId, description: "householdId", householdId: "householdId", createdAt: Date(), pointValue: 0)
         mockChoreService.choreToReturn = expectedChore
         
         sut.selectedChore = nil // Ensure it's nil before test

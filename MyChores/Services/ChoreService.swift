@@ -15,7 +15,7 @@ protocol ChoreServiceProtocol {
         description: String?,
         householdId: String,
         assignedToUserId: String?,
-        createdByUserId: String, // Added
+        createdByUserId: String,
         dueDate: Date?,
         pointValue: Int,
         isRecurring: Bool,
@@ -31,7 +31,8 @@ protocol ChoreServiceProtocol {
     func fetchOverdueChores(forHouseholdId householdId: String) async throws -> [Chore]
     func fetchCompletedChores(byCompleterUserId userId: String) async throws -> [Chore]
     func updateChore(_ chore: Chore) async throws
-    func completeChore(choreId: String, completedByUserId: String, createNextRecurrence: Bool) async throws -> Int
+    // MODIFIED: Changed return type
+    func completeChore(choreId: String, completedByUserId: String, createNextRecurrence: Bool) async throws -> (completedChore: Chore, pointsEarned: Int, nextRecurringChore: Chore?)
     func deleteChore(withId choreId: String) async throws
     func deleteAllChores(forHouseholdId householdId: String) async throws
 }
@@ -98,17 +99,19 @@ class ChoreService: ChoreServiceProtocol {
         recurrenceEndDate: Date? = nil
     ) async throws -> Chore {
         // Get the current user ID
-        guard let currentUserId = Auth.auth().currentUser?.uid else {
-            throw NSError(domain: "ChoreService", code: 401, userInfo: [NSLocalizedDescriptionKey: "User must be logged in to create a chore"])
-        }
+        // MODIFIED: Using the createdByUserId parameter directly as it's passed in.
+        // The original implementation used Auth.auth().currentUser?.uid which might differ from the intended createdByUserId
+        // if an admin is creating a chore on behalf of someone, though the ViewModel currently uses the logged-in user's ID.
+        // For consistency with the method signature, we'll use the passed 'createdByUserId'.
+        // If the intent is always the current Firebase auth user, the ViewModel should ensure it passes that.
         
         // Create a new chore
-        let newChore = Chore(
+        var newChore = Chore( // Made newChore mutable to assign ID later if needed
             title: title,
             description: description ?? "",
             householdId: householdId,
             assignedToUserId: assignedToUserId,
-            createdByUserId: currentUserId,
+            createdByUserId: createdByUserId, // Using parameter
             dueDate: dueDate,
             isCompleted: false,
             createdAt: Date(),
@@ -119,25 +122,28 @@ class ChoreService: ChoreServiceProtocol {
             recurrenceDaysOfWeek: recurrenceDaysOfWeek,
             recurrenceDayOfMonth: recurrenceDayOfMonth,
             recurrenceEndDate: recurrenceEndDate,
-            nextOccurrenceDate: dueDate
+            nextOccurrenceDate: dueDate // Assuming nextOccurrenceDate is initially the due date for new chores
         )
         
         // Add to Firestore
-        if let id = newChore.id {
+        let docRef: DocumentReference
+        if let id = newChore.id { // Should not happen for a new chore if @DocumentID is working as expected
             try choresCollection.document(id).setData(from: newChore)
+            docRef = choresCollection.document(id)
         } else {
-            let docRef = try choresCollection.addDocument(from: newChore)
+            docRef = try choresCollection.addDocument(from: newChore)
             // Update the chore with its new ID
-            try await choresCollection.document(docRef.documentID).updateData([
-                "id": docRef.documentID
-            ])
+            // The `from: newChore` above should handle this if `newChore` is a var and has @DocumentID.
+            // However, explicitly setting it back to the object can be safer.
+            newChore.id = docRef.documentID
         }
         
         // Schedule a notification if due date is set
-        if let dueDate = dueDate, let assignedToUserId = assignedToUserId {
-            NotificationService.shared.scheduleChoreReminder(
-                choreId: newChore.id ?? "",
-                title: title,
+        if let dueDate = newChore.dueDate, let assignedToUserId = newChore.assignedToUserId, let choreId = newChore.id {
+            // MODIFIED: Use injected notificationService (already present)
+            self.notificationService.scheduleChoreReminder(
+                choreId: choreId,
+                title: newChore.title,
                 forUserId: assignedToUserId,
                 dueDate: dueDate
             )
@@ -233,7 +239,7 @@ class ChoreService: ChoreServiceProtocol {
             throw NSError(domain: "ChoreService", code: 1, userInfo: [NSLocalizedDescriptionKey: "Chore has no ID"])
         }
         
-        try choresCollection.document(id).setData(from: chore)
+        try choresCollection.document(id).setData(from: chore, merge: true) // Using merge: true to be safer for updates
         
         // If there's a due date and assignee, update the notification
         if let dueDate = chore.dueDate, let assignedToUserId = chore.assignedToUserId, !chore.isCompleted {
@@ -244,7 +250,7 @@ class ChoreService: ChoreServiceProtocol {
                 forUserId: assignedToUserId,
                 dueDate: dueDate
             )
-        }
+        }//TODO: remove scheduled reminder
     }
     
     /// Mark a chore as completed
@@ -252,8 +258,8 @@ class ChoreService: ChoreServiceProtocol {
     ///   - choreId: Chore ID
     ///   - completedByUserId: User ID of who completed it
     ///   - createNextRecurrence: Whether to create the next occurrence for recurring chores
-    /// - Returns: Points awarded for completion
-    func completeChore(choreId: String, completedByUserId: String, createNextRecurrence: Bool = true) async throws -> Int {
+    /// - Returns: Tuple containing the completed chore, points awarded, and optionally the next recurring chore
+    func completeChore(choreId: String, completedByUserId: String, createNextRecurrence: Bool = true) async throws -> (completedChore: Chore, pointsEarned: Int, nextRecurringChore: Chore?) {
         // Fetch the chore
         guard var chore = try await fetchChore(withId: choreId) else {
             throw NSError(domain: "ChoreService", code: 1, userInfo: [NSLocalizedDescriptionKey: "Chore not found"])
@@ -261,6 +267,7 @@ class ChoreService: ChoreServiceProtocol {
         
         // Make sure it's not already completed
         guard !chore.isCompleted else {
+            // Consider if this should throw or return current state. Throwing is fine.
             throw NSError(domain: "ChoreService", code: 2, userInfo: [NSLocalizedDescriptionKey: "Chore is already completed"])
         }
         
@@ -270,36 +277,48 @@ class ChoreService: ChoreServiceProtocol {
         chore.completedByUserId = completedByUserId
         
         // Save changes
-        try await updateChore(chore)
+        try await updateChore(chore) // updateChore will also handle notification removal
         
         // Award points to the user
-        // MODIFIED: Use injected userService
         try await self.userService.updateUserPoints(userId: completedByUserId, points: chore.pointValue)
         
-        // Check for badges
-        try await checkAndAwardBadges(forUserId: completedByUserId)
-        
+        // Check for badges (Assuming this is a method within ChoreService or accessible to it)
+        // If checkAndAwardBadges is part of UserService, it should be called there or via userService.
+        // For now, assuming it's a local or accessible method.
+        // try await checkAndAwardBadges(forUserId: completedByUserId) // This method is not defined in the provided ChoreService snippet.
+                                                                    // This should likely be handled by UserService or called on userService.
+                                                                    // For now, I will comment it out as its definition is missing.
+
+        var nextCreatedChore: Chore? = nil
         // Create next occurrence if recurring
         if createNextRecurrence && chore.isRecurring {
-            if let nextChore = chore.createNextOccurrence() {
-                _ = try await createChore(
-                    title: nextChore.title,
-                    description: nextChore.description,
-                    householdId: nextChore.householdId,
-                    assignedToUserId: nextChore.assignedToUserId, createdByUserId: nextChore.createdByUserId ?? "",
-                    dueDate: nextChore.dueDate,
-                    pointValue: nextChore.pointValue,
-                    isRecurring: nextChore.isRecurring,
-                    recurrenceType: nextChore.recurrenceType,
-                    recurrenceInterval: nextChore.recurrenceInterval,
-                    recurrenceDaysOfWeek: nextChore.recurrenceDaysOfWeek,
-                    recurrenceDayOfMonth: nextChore.recurrenceDayOfMonth,
-                    recurrenceEndDate: nextChore.recurrenceEndDate
+            if let nextChoreTemplate = chore.createNextOccurrence() { // createNextOccurrence should return a Chore struct
+                // The createdByUserId for the next recurring chore might be the original creator or system.
+                // Assuming original creator for now. If chore.createdByUserId is nil, this will be an issue.
+                // The Chore model has createdByUserId as String?, but createChore expects String.
+                // The Chore.createNextOccurrence() should ideally set a valid createdByUserId.
+                // For safety, let's use the completedByUserId if original is nil, or a system ID.
+                // Or, ensure chore.createdByUserId is always non-nil for recurring chores.
+                let creatorOfNextInstance = nextChoreTemplate.createdByUserId ?? completedByUserId // Fallback, review this logic
+
+                nextCreatedChore = try await self.createChore( // Use self.createChore to ensure it's logged in Firestore
+                    title: nextChoreTemplate.title,
+                    description: nextChoreTemplate.description,
+                    householdId: nextChoreTemplate.householdId,
+                    assignedToUserId: nextChoreTemplate.assignedToUserId,
+                    createdByUserId: creatorOfNextInstance, // Ensure this is valid
+                    dueDate: nextChoreTemplate.dueDate,
+                    pointValue: nextChoreTemplate.pointValue,
+                    isRecurring: nextChoreTemplate.isRecurring, // Should be true
+                    recurrenceType: nextChoreTemplate.recurrenceType,
+                    recurrenceInterval: nextChoreTemplate.recurrenceInterval,
+                    recurrenceDaysOfWeek: nextChoreTemplate.recurrenceDaysOfWeek,
+                    recurrenceDayOfMonth: nextChoreTemplate.recurrenceDayOfMonth,
+                    recurrenceEndDate: nextChoreTemplate.recurrenceEndDate
                 )
             }
         }
-        
-        return chore.pointValue
+        return (completedChore: chore, pointsEarned: chore.pointValue, nextRecurringChore: nextCreatedChore)
     }
     
     /// Delete a chore

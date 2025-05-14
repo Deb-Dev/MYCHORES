@@ -96,11 +96,11 @@ class MockChoreService: ChoreServiceProtocol {
     var lastPointValue: Int?
     var lastIsRecurring: Bool?
     // Example for recurrence params if needed for detailed tests
-    // var lastRecurrenceType: MyChores.RecurrenceType?
-    // var lastRecurrenceInterval: Int?
-    // var lastRecurrenceDaysOfWeek: [Int]?
-    // var lastRecurrenceDayOfMonth: Int?
-    // var lastRecurrenceEndDate: Date?
+    var lastRecurrenceType: MyChores.RecurrenceType?
+    var lastRecurrenceInterval: Int?
+    var lastRecurrenceDaysOfWeek: [Int]?
+    var lastRecurrenceDayOfMonth: Int?
+    var lastRecurrenceEndDate: Date?
 
     var lastUpdatedChore: Chore?
     var lastCompletedChoreId: String?
@@ -111,6 +111,9 @@ class MockChoreService: ChoreServiceProtocol {
     var lastHouseholdIdForFetchChores: String?
     var lastIncludeCompletedForFetchChores: Bool?
 
+    // Properties for the new completeChore return type
+    var mockCompletedChoreToReturn: Chore? 
+    var mockNextRecurringChoreToReturn: Chore? 
 
     func fetchChores(forHouseholdId householdId: String, includeCompleted: Bool) async throws -> [Chore] {
         fetchChoresCalled = true
@@ -154,7 +157,8 @@ class MockChoreService: ChoreServiceProtocol {
         // Optionally, update choresToReturn or choreToReturn if needed for subsequent fetches
     }
 
-    func completeChore(choreId: String, completedByUserId: String, createNextRecurrence: Bool) async throws -> Int {
+    // MODIFIED: Signature and return type to match protocol
+    func completeChore(choreId: String, completedByUserId: String, createNextRecurrence: Bool) async throws -> (completedChore: Chore, pointsEarned: Int, nextRecurringChore: Chore?) {
         completeChoreCalled = true
         lastCompletedChoreId = choreId
         lastCompletedByUserId = completedByUserId
@@ -162,15 +166,37 @@ class MockChoreService: ChoreServiceProtocol {
         if let error = errorToThrow {
             throw error
         }
-        // Simulate point update and return
-        if let index = choresToReturn.firstIndex(where: { $0.id == choreId }) {
+
+        var choreToComplete: Chore
+        if let providedMock = mockCompletedChoreToReturn, providedMock.id == choreId {
+            choreToComplete = providedMock
+        } else if let index = choresToReturn.firstIndex(where: { $0.id == choreId }) {
             choresToReturn[index].isCompleted = true
             choresToReturn[index].completedByUserId = completedByUserId
             choresToReturn[index].completedAt = Date()
-            // Return the points for the completed chore
-            return choresToReturn[index].pointValue 
+            choreToComplete = choresToReturn[index]
+        } else {
+            // Default mock chore if not found or no specific mock provided
+            choreToComplete = Chore(
+                id: choreId, title: "Mock Completed Chore", description: "", householdId: "mockHousehold",
+                assignedToUserId: nil, createdByUserId: "mockCreator", dueDate: nil, 
+                isCompleted: true, createdAt: Date(), completedAt: Date(), completedByUserId: completedByUserId, 
+                pointValue: pointsToReturnOnComplete, isRecurring: false
+            )
         }
-        return pointsToReturnOnComplete // Fallback or if chore not in list
+        
+        let points = choreToComplete.pointValue
+        var nextChore: Chore? = nil
+        if createNextRecurrence && choreToComplete.isRecurring {
+            nextChore = mockNextRecurringChoreToReturn ?? choreToComplete.createNextOccurrence() // Use provided mock or generate
+            if nextChore != nil && mockNextRecurringChoreToReturn == nil { // if generated, add to list for future fetches
+                 // choresToReturn.append(nextChore!)
+            } else if let specificNextMock = mockNextRecurringChoreToReturn {
+                nextChore = specificNextMock
+            }
+        }
+
+        return (completedChore: choreToComplete, pointsEarned: points, nextRecurringChore: nextChore)
     }
 
     func deleteChore(withId choreId: String) async throws {
@@ -258,5 +284,9 @@ class MockChoreService: ChoreServiceProtocol {
         
         fetchChoresExpectation = nil
         fetchChoreExpectation = nil
+        
+        // Reset new mock properties for completeChore
+        mockCompletedChoreToReturn = nil
+        mockNextRecurringChoreToReturn = nil
     }
 }
