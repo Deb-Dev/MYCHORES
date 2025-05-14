@@ -74,6 +74,26 @@ service cloud.firestore {
       }
       
       // Validate chore data
+      function isValidRecurrenceRule(rule) {
+        let recurrenceTypes = ['none', 'daily', 'weekly', 'monthly', 'everyXDays', 'everyXWeeks', 'specificDayOfMonth', 'specificWeekdayOfMonth'];
+        let validDaysOfWeek = [0, 1, 2, 3, 4, 5, 6, 7]; // Assuming 0 or 7 for Sunday, 1-6 for Mon-Sat
+        let validWeekOfMonth = [-1, 1, 2, 3, 4, 5]; // -1 for last, 1-5 for first to fifth
+
+        return rule.keys().hasOnly(['type', 'interval', 'daysOfWeek', 'dayOfMonth', 'weekOfMonth', 'monthInterval', 'endDate']) &&
+               rule.type is string && rule.type in recurrenceTypes &&
+               (rule.interval == null || rule.interval is int) &&
+               (rule.daysOfWeek == null || (rule.daysOfWeek is list && rule.daysOfWeek.size() >= 0 && rule.daysOfWeek.hasOnly(validDaysOfWeek))) &&
+               (rule.dayOfMonth == null || rule.dayOfMonth is int) && // Further range checks can be added if needed, e.g., 1-31 or -1
+               (rule.weekOfMonth == null || (rule.weekOfMonth is int && rule.weekOfMonth in validWeekOfMonth)) &&
+               (rule.monthInterval == null || rule.monthInterval is int) &&
+               (rule.endDate == null || rule.endDate is timestamp) &&
+               // Additional conditional logic based on type
+               (!(rule.type == 'everyXDays' && rule.interval == null)) &&
+               (!(rule.type == 'everyXWeeks' && rule.interval == null)) &&
+               (!(rule.type == 'specificDayOfMonth' && rule.dayOfMonth == null)) &&
+               (!(rule.type == 'specificWeekdayOfMonth' && (rule.weekOfMonth == null || rule.daysOfWeek == null || rule.daysOfWeek.size() == 0)));
+      }
+
       function isValidChore(chore) {
         return chore.size() > 0 &&
                chore.title is string && 
@@ -88,7 +108,9 @@ service cloud.firestore {
                chore.createdAt is timestamp &&
                (chore.completedAt == null || chore.completedAt is timestamp) &&
                (chore.completedByUserId == null || chore.completedByUserId is string) &&
-               chore.pointValue is number;
+               chore.points is number && // Corrected from pointValue to points
+               (chore.recurrenceRule == null || (chore.recurrenceRule is map && isValidRecurrenceRule(chore.recurrenceRule))) &&
+               (chore.updatedAt == null || chore.updatedAt is timestamp);
       }
       
       // Members can read chores in their household

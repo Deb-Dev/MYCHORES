@@ -119,7 +119,7 @@ class ChoreViewModel: ObservableObject {
         errorMessage = nil
         
         do {
-            let fetchedChores = try await choreService.fetchChores(forHouseholdId: householdId, includeCompleted: true)
+            let fetchedChores = try await choreService.fetchChores(forHouseholdId: householdId, includeCompleted: false) // Changed to false
             self.chores = fetchedChores
             // Note: We keep the debug print but don't show error to user for empty state
             // as this is a normal condition, especially for new users
@@ -140,12 +140,12 @@ class ChoreViewModel: ObservableObject {
                     print("Permission error loading chores: \\(error.localizedDescription)")
                 }
                 else {
-                    self.errorMessage = "Failed to load chores: \\(error.localizedDescription)"
-                    print("Error loading chores: \\(error.localizedDescription)")
+                    self.errorMessage = "Failed to load chores: \(error.localizedDescription)"
+                    print("Error loading chores: \(error.localizedDescription)")
                 }
             } else {
-                self.errorMessage = "Failed to load chores: \\(error.localizedDescription)"
-                print("Error loading chores: \\(error.localizedDescription)")
+                self.errorMessage = "Failed to load chores: \(error.localizedDescription)"
+                print("Error loading chores: \(error.localizedDescription)")
             }
         }
         self.isLoading = false // Ensure isLoading is set to false in all paths
@@ -164,14 +164,23 @@ class ChoreViewModel: ObservableObject {
     @MainActor
     func loadChoreAsync(id: String) async {
         // Consider setting isLoading = true here if it's a distinct loading operation
-        // For now, assuming it might be part of a larger loading sequence or quick enough not to warrant it.
+        // and clearing previous error message:
+        // self.isLoading = true
+        // self.errorMessage = nil
+
         do {
             if let chore = try await choreService.fetchChore(withId: id) {
                 self.selectedChore = chore
+            } else {
+                // Chore not found by service, service returned nil without throwing an error.
+                self.selectedChore = nil
+                // For testLoadChore_NotFound_HandlesCorrectly, errorMessage is expected to be nil here.
             }
         } catch {
-            self.errorMessage = "Failed to load chore: \\(error.localizedDescription)"
+            self.errorMessage = "Failed to load chore: \(error.localizedDescription)" // Corrected string interpolation
+            self.selectedChore = nil // Clear selected chore on error
         }
+        // self.isLoading = false // Ensure isLoading is reset
     }
     
     /// Create a new chore
@@ -181,12 +190,7 @@ class ChoreViewModel: ObservableObject {
     ///   - assignedToUserId: User ID the chore is assigned to (optional)
     ///   - dueDate: Due date for completion (optional)
     ///   - pointValue: Points awarded for completion
-    ///   - isRecurring: Whether this is a recurring chore
-    ///   - recurrenceType: Type of recurrence (daily, weekly, monthly)
-    ///   - recurrenceInterval: Interval between recurrences
-    ///   - recurrenceDaysOfWeek: Days of week for weekly recurrence
-    ///   - recurrenceDayOfMonth: Day of month for monthly recurrence
-    ///   - recurrenceEndDate: End date for recurring chores
+    ///   - recurrenceRule: The recurrence rule for the chore (optional)
     @MainActor
     func createChore(
         title: String,
@@ -194,12 +198,7 @@ class ChoreViewModel: ObservableObject {
         assignedToUserId: String? = nil,
         dueDate: Date? = nil,
         pointValue: Int = 1,
-        isRecurring: Bool = false,
-        recurrenceType: RecurrenceType? = nil,
-        recurrenceInterval: Int? = nil,
-        recurrenceDaysOfWeek: [Int]? = nil,
-        recurrenceDayOfMonth: Int? = nil,
-        recurrenceEndDate: Date? = nil
+        recurrenceRule: RecurrenceRule? = nil // Updated parameter
     ) {
         isLoading = true
         errorMessage = nil
@@ -212,6 +211,7 @@ class ChoreViewModel: ObservableObject {
                     return
                 }
                 
+                // Call the updated ChoreService method
                 let newChore = try await choreService.createChore(
                     title: title,
                     description: description,
@@ -219,18 +219,13 @@ class ChoreViewModel: ObservableObject {
                     assignedToUserId: assignedToUserId, 
                     createdByUserId: userid,
                     dueDate: dueDate,
-                    pointValue: pointValue,
-                    isRecurring: isRecurring,
-                    recurrenceType: recurrenceType,
-                    recurrenceInterval: recurrenceInterval,
-                    recurrenceDaysOfWeek: recurrenceDaysOfWeek,
-                    recurrenceDayOfMonth: recurrenceDayOfMonth,
-                    recurrenceEndDate: recurrenceEndDate
+                    points: pointValue, // Renamed from pointValue to points
+                    recurrenceRule: recurrenceRule // Pass the new recurrenceRule
                 )
                 
                 self.chores.append(newChore)
             } catch {
-                self.errorMessage = "Failed to create chore: \\(error.localizedDescription)"
+                self.errorMessage = "Failed to create chore: \(error.localizedDescription)"
             }
         }
     }
@@ -262,7 +257,7 @@ class ChoreViewModel: ObservableObject {
                     self.selectedChore = chore
                 }
             } catch {
-                self.errorMessage = "Failed to update chore: \\(error.localizedDescription)"
+                self.errorMessage = "Failed to update chore: \(error.localizedDescription)"
             }
         }
     }
@@ -287,7 +282,7 @@ class ChoreViewModel: ObservableObject {
                     self.selectedChore = nil
                 }
             } catch {
-                self.errorMessage = "Failed to delete chore: \\(error.localizedDescription)"
+                self.errorMessage = "Failed to delete chore: \(error.localizedDescription)"
             }
         }
     }
@@ -348,7 +343,7 @@ class ChoreViewModel: ObservableObject {
                 // No need to call self.loadChores() anymore if service returns all necessary data
                 
             } catch {
-                self.errorMessage = "Failed to complete chore: \\(error.localizedDescription)"
+                self.errorMessage = "Failed to complete chore: \(error.localizedDescription)"
             }
         }
     }

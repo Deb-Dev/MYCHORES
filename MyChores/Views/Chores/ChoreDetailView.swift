@@ -106,13 +106,13 @@ struct ChoreDetailView: View {
             // Points
             infoCard(
                 title: "Points",
-                value: "\(chore.pointValue) point\(chore.pointValue > 1 ? "s" : "")",
+                value: "\(chore.points) point\(chore.points > 1 ? "s" : "")", // Corrected to chore.points
                 icon: "star.fill",
                 color: Theme.Colors.accent
             )
             
             // Recurrence
-            if chore.isRecurring {
+            if chore.recurrenceRule != nil && chore.recurrenceRule?.type != .none {
                 infoCard(
                     title: "Recurrence",
                     value: getRecurrenceText(),
@@ -301,37 +301,96 @@ struct ChoreDetailView: View {
     }
     
     private func getRecurrenceText() -> String {
-        guard let type = chore.recurrenceType, let interval = chore.recurrenceInterval else {
-            return "Recurring"
+        guard let rule = chore.recurrenceRule, rule.type != .none else {
+            return "Does not repeat"
         }
         
-        var baseText: String
+        var text = ""
         
-        switch type {
+        switch rule.type {
         case .daily:
-            baseText = interval == 1 ? "Daily" : "Every \(interval) days"
+            text = rule.interval == 1 ? "Daily" : "Every \\\\(rule.interval ?? 1) days"
         case .weekly:
-            baseText = interval == 1 ? "Weekly" : "Every \(interval) weeks"
-            
-            if let days = chore.recurrenceDaysOfWeek, !days.isEmpty {
-                let dayNames = days.map { getDayName($0) }.joined(separator: ", ")
-                baseText += " on \(dayNames)"
+            let base = rule.interval == 1 ? "Weekly" : "Every \\\\(rule.interval ?? 1) weeks"
+            if let days = rule.daysOfWeek, !days.isEmpty {
+                let dayNames = days.compactMap { DayOfWeek(rawValue: $0)?.shortName }.joined(separator: ", ")
+                text = "\\\\(base) on \\\\(dayNames)"
+            } else {
+                text = base
             }
         case .monthly:
-            baseText = interval == 1 ? "Monthly" : "Every \(interval) months"
-            
-            if let dayOfMonth = chore.recurrenceDayOfMonth {
-                baseText += " on day \(dayOfMonth)"
+            var monthText = "Monthly"
+            if let dayOfMonth = rule.dayOfMonth, dayOfMonth > 0 {
+                monthText += " on day \\\\(dayOfMonth)"
             }
+            
+            // Add month interval text only if it's greater than 1,
+            // or if there's no specific day of month (meaning it's just "Monthly, every X months")
+            if let monthInterval = rule.monthInterval, monthInterval > 1 {
+                if rule.dayOfMonth != nil {
+                     monthText += "," // Add comma if dayOfMonth was specified
+                }
+                monthText += " every \\\\(monthInterval) months"
+            } else if rule.dayOfMonth == nil && rule.monthInterval == 1 {
+                // This is just "Monthly", already handled by initialization of monthText
+            }
+            text = monthText
+        case .everyXDays:
+            text = "Every \\\\(rule.interval ?? 1) days"
+        case .everyXWeeks:
+            let base = "Every \\\\(rule.interval ?? 1) weeks"
+            if let days = rule.daysOfWeek, !days.isEmpty {
+                let dayNames = days.compactMap { DayOfWeek(rawValue: $0)?.shortName }.joined(separator: ", ")
+                text = "\\\\(base) on \\\\(dayNames)"
+            } else {
+                text = base
+            }
+        case .specificDayOfMonth:
+            var specificDayText = "On the "
+            if let day = rule.dayOfMonth {
+                if day == -1 { // Assuming -1 means last day
+                    specificDayText += "last day"
+                } else {
+                    specificDayText += "\\\\(day)\\\\(ordinalSuffix(day)) day"
+                }
+            }
+            specificDayText += " of the month"
+            if let monthInterval = rule.monthInterval, monthInterval > 1 {
+                specificDayText += ", every \\\\(monthInterval) months"
+            }
+            text = specificDayText
+        case .specificWeekdayOfMonth:
+            var specificWeekdayText = "On the "
+            if let weekOrdinal = rule.weekOfMonth, let dayOfWeekValue = rule.daysOfWeek?.first,
+               let weekDesc = WeekOfMonthOption(rawValue: weekOrdinal)?.displayName,
+               let dayName = DayOfWeek(rawValue: dayOfWeekValue)?.shortName {
+                specificWeekdayText += "\\\\(weekDesc) \\\\(dayName)"
+            }
+            specificWeekdayText += " of the month"
+            if let monthInterval = rule.monthInterval, monthInterval > 1 {
+                specificWeekdayText += ", every \\\\(monthInterval) months"
+            }
+            text = specificWeekdayText
+        case .none:
+            return "Does not repeat"
         }
         
-        if let endDate = chore.recurrenceEndDate {
+        if let endDate = rule.endDate {
             let formatter = DateFormatter()
             formatter.dateStyle = .medium
-            baseText += " until \(formatter.string(from: endDate))"
+            text += ", until \\\\(formatter.string(from: endDate))"
         }
         
-        return baseText
+        return text
+    }
+
+    private func ordinalSuffix(_ number: Int) -> String {
+        let suffixes = ["th", "st", "nd", "rd"]
+        let v = number % 100
+        if v >= 11 && v <= 13 {
+            return "th"
+        }
+        return suffixes[min(number % 10, 4)]
     }
     
     private func getDayName(_ dayIndex: Int) -> String {

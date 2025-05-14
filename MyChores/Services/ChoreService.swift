@@ -17,13 +17,8 @@ protocol ChoreServiceProtocol {
         assignedToUserId: String?,
         createdByUserId: String,
         dueDate: Date?,
-        pointValue: Int,
-        isRecurring: Bool,
-        recurrenceType: RecurrenceType?,
-        recurrenceInterval: Int?,
-        recurrenceDaysOfWeek: [Int]?,
-        recurrenceDayOfMonth: Int?,
-        recurrenceEndDate: Date?
+        points: Int, // Renamed from pointValue
+        recurrenceRule: RecurrenceRule? // Replaced individual recurrence params
     ) async throws -> Chore
     func fetchChore(withId id: String) async throws -> Chore?
     func fetchChores(forHouseholdId householdId: String, includeCompleted: Bool) async throws -> [Chore]
@@ -75,28 +70,18 @@ class ChoreService: ChoreServiceProtocol {
     ///   - householdId: Household ID
     ///   - assignedToUserId: User ID the chore is assigned to (optional)
     ///   - dueDate: Due date for completion (optional)
-    ///   - pointValue: Points awarded for completion
-    ///   - isRecurring: Whether this is a recurring chore
-    ///   - recurrenceType: Type of recurrence (daily, weekly, monthly)
-    ///   - recurrenceInterval: Interval between recurrences
-    ///   - recurrenceDaysOfWeek: Days of week for weekly recurrence
-    ///   - recurrenceDayOfMonth: Day of month for monthly recurrence
-    ///   - recurrenceEndDate: End date for recurring chores
+    ///   - points: Points awarded for completion
+    ///   - recurrenceRule: The recurrence rule for the chore (optional)
     /// - Returns: The created Chore
     func createChore(
         title: String,
         description: String? = nil,
         householdId: String,
         assignedToUserId: String? = nil,
-        createdByUserId: String, // Added
+        createdByUserId: String,
         dueDate: Date? = nil,
-        pointValue: Int,
-        isRecurring: Bool = false,
-        recurrenceType: RecurrenceType? = nil,
-        recurrenceInterval: Int? = nil,
-        recurrenceDaysOfWeek: [Int]? = nil,
-        recurrenceDayOfMonth: Int? = nil,
-        recurrenceEndDate: Date? = nil
+        points: Int, // Renamed from pointValue
+        recurrenceRule: RecurrenceRule? = nil // Replaced individual recurrence params
     ) async throws -> Chore {
         // Get the current user ID
         // MODIFIED: Using the createdByUserId parameter directly as it's passed in.
@@ -111,18 +96,14 @@ class ChoreService: ChoreServiceProtocol {
             description: description ?? "",
             householdId: householdId,
             assignedToUserId: assignedToUserId,
-            createdByUserId: createdByUserId, // Using parameter
+            createdByUserId: createdByUserId,
             dueDate: dueDate,
             isCompleted: false,
             createdAt: Date(),
-            pointValue: pointValue,
-            isRecurring: isRecurring,
-            recurrenceType: recurrenceType,
-            recurrenceInterval: recurrenceInterval,
-            recurrenceDaysOfWeek: recurrenceDaysOfWeek,
-            recurrenceDayOfMonth: recurrenceDayOfMonth,
-            recurrenceEndDate: recurrenceEndDate,
-            nextOccurrenceDate: dueDate // Assuming nextOccurrenceDate is initially the due date for new chores
+            points: points, // Use the renamed parameter
+            recurrenceRule: recurrenceRule, // Use the new recurrenceRule parameter
+            updatedAt: Date() // Assuming updatedAt should be set on creation
+            // nextOccurrenceDate: dueDate // This was in the old model, review if needed with RecurrenceRule
         )
         
         // Add to Firestore
@@ -280,7 +261,7 @@ class ChoreService: ChoreServiceProtocol {
         try await updateChore(chore) // updateChore will also handle notification removal
         
         // Award points to the user
-        try await self.userService.updateUserPoints(userId: completedByUserId, points: chore.pointValue)
+        try await self.userService.updateUserPoints(userId: completedByUserId, points: chore.points)
         
         // Check for badges (Assuming this is a method within ChoreService or accessible to it)
         // If checkAndAwardBadges is part of UserService, it should be called there or via userService.
@@ -291,7 +272,8 @@ class ChoreService: ChoreServiceProtocol {
 
         var nextCreatedChore: Chore? = nil
         // Create next occurrence if recurring
-        if createNextRecurrence && chore.isRecurring {
+        // MODIFIED: Check recurrenceRule instead of isRecurring
+        if createNextRecurrence && chore.recurrenceRule != nil && chore.recurrenceRule?.type != .none {
             if let nextChoreTemplate = chore.createNextOccurrence() { // createNextOccurrence should return a Chore struct
                 // The createdByUserId for the next recurring chore might be the original creator or system.
                 // Assuming original creator for now. If chore.createdByUserId is nil, this will be an issue.
@@ -308,17 +290,12 @@ class ChoreService: ChoreServiceProtocol {
                     assignedToUserId: nextChoreTemplate.assignedToUserId,
                     createdByUserId: creatorOfNextInstance, // Ensure this is valid
                     dueDate: nextChoreTemplate.dueDate,
-                    pointValue: nextChoreTemplate.pointValue,
-                    isRecurring: nextChoreTemplate.isRecurring, // Should be true
-                    recurrenceType: nextChoreTemplate.recurrenceType,
-                    recurrenceInterval: nextChoreTemplate.recurrenceInterval,
-                    recurrenceDaysOfWeek: nextChoreTemplate.recurrenceDaysOfWeek,
-                    recurrenceDayOfMonth: nextChoreTemplate.recurrenceDayOfMonth,
-                    recurrenceEndDate: nextChoreTemplate.recurrenceEndDate
+                    points: nextChoreTemplate.points,
+                    recurrenceRule: nextChoreTemplate.recurrenceRule // Pass the rule for the next instance
                 )
             }
         }
-        return (completedChore: chore, pointsEarned: chore.pointValue, nextRecurringChore: nextCreatedChore)
+        return (completedChore: chore, pointsEarned: chore.points, nextRecurringChore: nextCreatedChore)
     }
     
     /// Delete a chore
