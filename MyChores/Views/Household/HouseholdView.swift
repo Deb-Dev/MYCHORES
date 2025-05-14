@@ -6,6 +6,13 @@
 
 import SwiftUI
 
+struct ScaleButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.97 : 1)
+            .animation(.spring(response: 0.3, dampingFraction: 0.6), value: configuration.isPressed)
+    }
+}
 /// View for managing household settings and members
 struct HouseholdView: View {
     @Binding var selectedHouseholdId: String?
@@ -15,11 +22,34 @@ struct HouseholdView: View {
     @State private var showingCreateHousehold = false
     @State private var showingJoinHousehold = false
     
+    // Animation states
+    @State private var headerAppeared = false
+    @State private var cardsAppeared = false
+    @State private var buttonsAppeared = false
+    
     var onCreateNewHousehold: (() -> Void)? = nil
     
     var body: some View {
         ZStack {
             Theme.Colors.background.ignoresSafeArea()
+            
+            // Background decoration
+            VStack {
+                Circle()
+                    .fill(Theme.Colors.primary.opacity(0.05))
+                    .frame(width: 300, height: 300)
+                    .offset(x: 150, y: -150)
+                    .blur(radius: 50)
+                
+                Circle()
+                    .fill(Theme.Colors.secondary.opacity(0.05))
+                    .frame(width: 200, height: 200)
+                    .offset(x: -150, y: 100)
+                    .blur(radius: 40)
+                
+                Spacer()
+            }
+            .ignoresSafeArea()
             
             if viewModel.isLoading {
                 ProgressView()
@@ -31,20 +61,34 @@ struct HouseholdView: View {
                         // Household picker (if user belongs to multiple households)
                         if let user = viewModel.currentUser, user.householdIds.count > 1 {
                             householdPicker(user: user)
+                                .transition(.move(edge: .top).combined(with: .opacity))
+                                .animation(.easeInOut(duration: 0.5).delay(0.1), value: headerAppeared)
+                                .opacity(headerAppeared ? 1 : 0)
                         }
                         
                         // Current household info
                         if let household = viewModel.selectedHousehold {
                             currentHouseholdSection(household: household)
+                                .transition(.scale.combined(with: .opacity))
+                                .animation(.spring(response: 0.6, dampingFraction: 0.7).delay(0.2), value: cardsAppeared)
+                                .opacity(cardsAppeared ? 1 : 0)
+                                .offset(y: cardsAppeared ? 0 : 20)
                         }
                         
                         // Members section
                         if !viewModel.householdMembers.isEmpty {
                             membersSection(members: viewModel.householdMembers)
+                                .transition(.move(edge: .bottom).combined(with: .opacity))
+                                .animation(.spring(response: 0.6, dampingFraction: 0.7).delay(0.3), value: cardsAppeared)
+                                .opacity(cardsAppeared ? 1 : 0)
+                                .offset(y: cardsAppeared ? 0 : 20)
                         }
                         
                         // Actions section
                         actionsSection
+                            .transition(.scale.combined(with: .opacity))
+                            .animation(.spring(response: 0.6, dampingFraction: 0.7).delay(0.4), value: buttonsAppeared)
+                            .opacity(buttonsAppeared ? 1 : 0)
                     }
                     .padding(.horizontal, 16)
                     .padding(.bottom, 24)
@@ -95,6 +139,25 @@ struct HouseholdView: View {
             if let id = selectedHouseholdId {
                 viewModel.fetchHousehold(id: id)
             }
+            
+            // Trigger animations
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                withAnimation {
+                    headerAppeared = true
+                }
+                
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                    withAnimation {
+                        cardsAppeared = true
+                    }
+                    
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                        withAnimation {
+                            buttonsAppeared = true
+                        }
+                    }
+                }
+            }
         }
     }
     
@@ -105,6 +168,7 @@ struct HouseholdView: View {
             Text("Select Household")
                 .font(Theme.Typography.captionFontSystem)
                 .foregroundColor(Theme.Colors.textSecondary)
+                .padding(.leading, 4)
             
             Menu {
                 ForEach(user.householdIds, id: \.self) { householdId in
@@ -113,6 +177,7 @@ struct HouseholdView: View {
                     } label: {
                         if householdId == selectedHouseholdId {
                             Label(getHouseholdName(id: householdId) ?? "Household", systemImage: "checkmark")
+                                .foregroundColor(Theme.Colors.primary)
                         } else {
                             Text(getHouseholdName(id: householdId) ?? "Household")
                         }
@@ -135,36 +200,91 @@ struct HouseholdView: View {
                 }
             } label: {
                 HStack {
-                    Text(getHouseholdName(id: selectedHouseholdId) ?? "Select Household")
-                        .font(Theme.Typography.bodyFontSystem)
-                        .foregroundColor(Theme.Colors.text)
+                    HStack(spacing: 12) {
+                        // House icon with color based on selected household
+                        ZStack {
+                            Circle()
+                                .fill(Theme.Colors.primary.opacity(0.15))
+                                .frame(width: 36, height: 36)
+                            
+                            Image(systemName: "house.fill")
+                                .font(.system(size: 16))
+                                .foregroundColor(Theme.Colors.primary)
+                        }
+                        
+                        Text(getHouseholdName(id: selectedHouseholdId) ?? "Select Household")
+                            .font(Theme.Typography.bodyFontSystem.bold())
+                            .foregroundColor(Theme.Colors.text)
+                    }
                     
                     Spacer()
                     
                     Image(systemName: "chevron.down")
-                        .font(.system(size: 14))
+                        .font(.system(size: 14, weight: .semibold))
                         .foregroundColor(Theme.Colors.textSecondary)
+                        .padding(8)
+                        .background(Color.black.opacity(0.03))
+                        .clipShape(Circle())
                 }
-                .padding()
-                .background(Theme.Colors.cardBackground)
-                .cornerRadius(Theme.Dimensions.cornerRadiusMedium)
+                .padding(.vertical, 12)
+                .padding(.horizontal, 16)
+                .background(
+                    RoundedRectangle(cornerRadius: Theme.Dimensions.cornerRadiusMedium)
+                        .fill(Theme.Colors.cardBackground)
+                        .shadow(color: Color.black.opacity(0.05), radius: 2, x: 0, y: 1)
+                )
                 .overlay(
                     RoundedRectangle(cornerRadius: Theme.Dimensions.cornerRadiusMedium)
-                        .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+                        .stroke(
+                            LinearGradient(
+                                colors: [Theme.Colors.primary.opacity(0.3), Theme.Colors.primary.opacity(0.1)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            ),
+                            lineWidth: 1
+                        )
                 )
+                .contentShape(Rectangle())
             }
         }
-        .padding(.horizontal, 16)
         .padding(.top, 16)
     }
     
     private func currentHouseholdSection(household: Household) -> some View {
-        VStack(spacing: 16) {
-            // Household icon and name
-            VStack(spacing: 8) {
-                Image(systemName: "house.fill")
-                    .font(.system(size: 40))
-                    .foregroundColor(Theme.Colors.primary)
+        VStack(spacing: 20) {
+            // Household icon and name with shimmer effect
+            VStack(spacing: 12) {
+                ZStack {
+                    Circle()
+                        .fill(Theme.Colors.primary.opacity(0.15))
+                        .frame(width: 90, height: 90)
+                    
+                    Circle()
+                        .fill(Theme.Colors.cardBackground)
+                        .frame(width: 80, height: 80)
+                        .shadow(color: Color.black.opacity(0.05), radius: 2, x: 0, y: 1)
+                    
+                    Image(systemName: "house.fill")
+                        .font(.system(size: 40))
+                        .foregroundColor(Theme.Colors.primary)
+                        .shadow(color: Theme.Colors.primary.opacity(0.3), radius: 2, x: 0, y: 1)
+                }
+                .overlay(
+                    Circle()
+                        .stroke(
+                            LinearGradient(
+                                gradient: Gradient(colors: [Theme.Colors.primary.opacity(0.7), Theme.Colors.primary.opacity(0.1)]),
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            ),
+                            lineWidth: 2
+                        )
+                        .rotationEffect(Angle(degrees: headerAppeared ? 360 : 0))
+                        .animation(
+                            Animation.linear(duration: 10).repeatForever(autoreverses: false),
+                            value: headerAppeared
+                        )
+                )
                 
                 Text(household.name)
                     .font(Theme.Typography.titleFontSystem)
@@ -172,46 +292,68 @@ struct HouseholdView: View {
                     .multilineTextAlignment(.center)
             }
             
-            // Household stats
-            HStack(spacing: 24) {
-                VStack(spacing: 4) {
+            // Household stats with improved visual styling
+            HStack(spacing: 32) {
+                VStack(spacing: 6) {
                     Text("\(viewModel.householdMembers.count)")
-                        .font(Theme.Typography.subheadingFontSystem.bold())
+                        .font(Theme.Typography.headingFontSystem.bold())
                         .foregroundColor(Theme.Colors.primary)
                     
                     Text("Members")
                         .font(Theme.Typography.captionFontSystem)
                         .foregroundColor(Theme.Colors.textSecondary)
+                        .padding(.top, 2)
                 }
+                .frame(width: 100)
                 
-                VStack(spacing: 4) {
+                VStack(spacing: 6) {
                     Text(household.createdAt.formatted(date: .abbreviated, time: .omitted))
-                        .font(Theme.Typography.subheadingFontSystem.bold())
+                        .font(Theme.Typography.headingFontSystem.bold())
                         .foregroundColor(Theme.Colors.secondary)
                     
                     Text("Created")
                         .font(Theme.Typography.captionFontSystem)
                         .foregroundColor(Theme.Colors.textSecondary)
+                        .padding(.top, 2)
                 }
+                .frame(width: 100)
             }
+            .padding(.vertical, 10)
+            .background(Theme.Colors.cardBackground.opacity(0.6))
+            .cornerRadius(Theme.Dimensions.cornerRadiusMedium)
             
-            // Invite code card
+            // Invite code card with animated effects
             Button {
                 showingInviteSheet = true
             } label: {
                 HStack {
                     Image(systemName: "person.badge.plus")
                         .font(.system(size: 20))
-                        .foregroundColor(Theme.Colors.primary)
+                        .symbolEffect(.pulse, options: .repeating, value: cardsAppeared)
                     
                     Text("Share Invite Code")
                         .font(Theme.Typography.bodyFontSystem.bold())
-                        .foregroundColor(Theme.Colors.primary)
                 }
-                .padding()
+                .foregroundColor(Theme.Colors.primary)
+                .padding(.vertical, 12)
+                .padding(.horizontal, 16)
                 .frame(maxWidth: .infinity)
-                .background(Theme.Colors.primary.opacity(0.1))
+                .background(
+                    LinearGradient(
+                        colors: [
+                            Theme.Colors.primary.opacity(0.12),
+                            Theme.Colors.primary.opacity(0.08)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: Theme.Dimensions.cornerRadiusMedium)
+                        .stroke(Theme.Colors.primary.opacity(0.3), lineWidth: 1)
+                )
                 .cornerRadius(Theme.Dimensions.cornerRadiusMedium)
+                .shadow(color: Theme.Colors.primary.opacity(0.2), radius: 2, x: 0, y: 2)
             }
         }
         .padding()
@@ -227,8 +369,8 @@ struct HouseholdView: View {
                 .foregroundColor(Theme.Colors.text)
                 .padding(.horizontal, 16)
             
-            ForEach(members, id: \.stableId) { member in
-                memberRow(member: member)
+            ForEach(Array(members.enumerated()), id: \.element.stableId) { index, member in
+                memberRow(member: member, index: index)
             }
         }
         .padding(.vertical, 16)
@@ -237,19 +379,32 @@ struct HouseholdView: View {
         .shadow(color: Color.black.opacity(0.05), radius: 2, x: 0, y: 1)
     }
     
-    private func memberRow(member: User) -> some View {
-        HStack(spacing: 16) {
-            // Avatar
-            Circle()
-                .fill(Theme.Colors.secondary)
-                .frame(width: 50, height: 50)
-                .overlay(
-                    Text(getInitials(from: member.name))
-                        .font(Theme.Typography.bodyFontSystem.bold())
-                        .foregroundColor(.white)
-                )
+    private func memberRow(member: User, index: Int) -> some View {
+        // Animation state to stagger the appearance of members
+        let isLast = index == viewModel.householdMembers.count - 1
+        let animationDelay = 0.2 + (Double(index) * 0.1)
+        
+        return HStack(spacing: 16) {
+            // Enhanced avatar
+            ZStack {
+                Circle()
+                    .fill(getMemberColor(member))
+                    .frame(width: 50, height: 50)
+                    .shadow(color: Color.black.opacity(0.1), radius: 2, x: 0, y: 1)
+                
+                // White inner circle
+                Circle()
+                    .fill(Color.white.opacity(0.9))
+                    .frame(width: 42, height: 42)
+                
+                // Initials
+                Text(getInitials(from: member.name))
+                    .font(Theme.Typography.bodyFontSystem.bold())
+                    .foregroundColor(getMemberColor(member))
+            }
+            .drawingGroup() // Use Metal rendering for better performance
             
-            // Name and email
+            // Name and email with improved styling
             VStack(alignment: .leading, spacing: 4) {
                 Text(member.name)
                     .font(Theme.Typography.bodyFontSystem.bold())
@@ -258,30 +413,66 @@ struct HouseholdView: View {
                 Text(member.email)
                     .font(Theme.Typography.captionFontSystem)
                     .foregroundColor(Theme.Colors.textSecondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
             }
             
             Spacer()
             
-            // Creator badge or current user indicator
+            // Enhanced badges
             if isCreator(member) {
-                Text("Creator")
-                    .font(Theme.Typography.captionFontSystem.bold())
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 4)
-                    .background(Theme.Colors.accent)
-                    .cornerRadius(12)
+                HStack(spacing: 4) {
+                    Image(systemName: "crown.fill")
+                        .font(.system(size: 12))
+                    
+                    Text("Creator")
+                        .font(Theme.Typography.captionFontSystem.bold())
+                }
+                .foregroundColor(.white)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 5)
+                .background(
+                    LinearGradient(
+                        colors: [Theme.Colors.accent, Theme.Colors.accent.opacity(0.8)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .cornerRadius(12)
+                .shadow(color: Theme.Colors.accent.opacity(0.3), radius: 2, x: 0, y: 1)
             } else if isCurrentUser(member) {
                 Text("You")
                     .font(Theme.Typography.captionFontSystem.bold())
                     .foregroundColor(.white)
                     .padding(.horizontal, 10)
-                    .padding(.vertical, 4)
-                    .background(Theme.Colors.primary)
+                    .padding(.vertical, 5)
+                    .background(
+                        LinearGradient(
+                            colors: [Theme.Colors.primary, Theme.Colors.primary.opacity(0.8)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
                     .cornerRadius(12)
+                    .shadow(color: Theme.Colors.primary.opacity(0.3), radius: 2, x: 0, y: 1)
             }
         }
         .padding(16)
+        .background(isCurrentUser(member) ? Theme.Colors.primary.opacity(0.05) : Color.clear)
+        .cornerRadius(Theme.Dimensions.cornerRadiusSmall)
+        .padding(.horizontal, 8)
+        // Add staggered animations for each member row
+        .opacity(cardsAppeared ? 1 : 0)
+        .offset(y: cardsAppeared ? 0 : 20)
+        .animation(.spring(response: 0.4, dampingFraction: 0.8).delay(animationDelay), value: cardsAppeared)
+        // Add divider after all but last member
+        .overlay(alignment: .bottom) {
+            if !isLast {
+                Divider()
+                    .padding(.horizontal, 16)
+                    .opacity(0.5)
+            }
+        }
     }
     
     private var actionsSection: some View {
@@ -292,52 +483,87 @@ struct HouseholdView: View {
                     showingCreateHousehold = true
                     onCreateNewHousehold?()
                 } label: {
-                    HStack {
+                    HStack(spacing: 12) {
                         Image(systemName: "plus.circle.fill")
+                            .font(.system(size: 20))
+                            .symbolRenderingMode(.hierarchical)
+                            .symbolEffect(.bounce, options: .repeat(2), value: buttonsAppeared)
+                        
                         Text("Create New Household")
+                            .fontWeight(.bold)
                     }
-                    .font(Theme.Typography.bodyFontSystem.bold())
+                    .font(Theme.Typography.bodyFontSystem)
                     .foregroundColor(.white)
                     .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(Theme.Colors.primary)
-                    .cornerRadius(Theme.Dimensions.cornerRadiusMedium)
+                    .padding(.vertical, 16)
+                    .background(
+                        LinearGradient(
+                            colors: [Theme.Colors.primary, Theme.Colors.primary.opacity(0.8)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: Theme.Dimensions.cornerRadiusMedium))
+                    .shadow(color: Theme.Colors.primary.opacity(0.3), radius: 5, x: 0, y: 3)
                 }
+                .buttonStyle(ScaleButtonStyle())
                 
                 Button {
                     showingJoinHousehold = true
                 } label: {
-                    HStack {
+                    HStack(spacing: 12) {
                         Image(systemName: "person.badge.plus")
+                            .font(.system(size: 20))
+                            .symbolRenderingMode(.hierarchical)
+                        
                         Text("Join Household")
+                            .fontWeight(.bold)
                     }
-                    .font(Theme.Typography.bodyFontSystem.bold())
+                    .font(Theme.Typography.bodyFontSystem)
                     .foregroundColor(Theme.Colors.primary)
                     .frame(maxWidth: .infinity)
-                    .padding()
+                    .padding(.vertical, 16)
                     .background(Theme.Colors.primary.opacity(0.1))
-                    .cornerRadius(Theme.Dimensions.cornerRadiusMedium)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: Theme.Dimensions.cornerRadiusMedium)
+                            .stroke(Theme.Colors.primary.opacity(0.3), lineWidth: 1)
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: Theme.Dimensions.cornerRadiusMedium))
                 }
+                .buttonStyle(ScaleButtonStyle())
             } else {
                 // Leave current household
                 Button {
                     showingLeaveAlert = true
                 } label: {
-                    HStack {
+                    HStack(spacing: 12) {
                         Image(systemName: "rectangle.portrait.and.arrow.right")
+                            .font(.system(size: 20))
+                            .symbolRenderingMode(.hierarchical)
+                        
                         Text("Leave Household")
+                            .fontWeight(.bold)
                     }
-                    .font(Theme.Typography.bodyFontSystem.bold())
+                    .font(Theme.Typography.bodyFontSystem)
                     .foregroundColor(Theme.Colors.error)
                     .frame(maxWidth: .infinity)
-                    .padding()
+                    .padding(.vertical, 16)
                     .background(Theme.Colors.error.opacity(0.1))
-                    .cornerRadius(Theme.Dimensions.cornerRadiusMedium)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: Theme.Dimensions.cornerRadiusMedium)
+                            .stroke(Theme.Colors.error.opacity(0.3), lineWidth: 1)
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: Theme.Dimensions.cornerRadiusMedium))
                 }
+                .buttonStyle(ScaleButtonStyle())
             }
         }
         .padding(.top, 8)
     }
+    
+    // MARK: - Button Styles
+    
+    /// Custom button style that scales when pressed
     
     // MARK: - Helper Methods
     
@@ -360,6 +586,22 @@ struct HouseholdView: View {
         } else {
             return "?"
         }
+    }
+    
+    /// Gets a consistent color for a user based on their ID
+    private func getMemberColor(_ user: User) -> Color {
+        // This allows us to have consistent colors for specific users
+        if let userId = user.id, let firstChar = userId.first {
+            let value = Int(firstChar.asciiValue ?? 0) % 5
+            switch value {
+            case 0: return Theme.Colors.secondary
+            case 1: return Theme.Colors.accent 
+            case 2: return Theme.Colors.primary
+            case 3: return Color(red: 0.4, green: 0.6, blue: 0.9) // Light blue
+            default: return Color(red: 0.8, green: 0.4, blue: 0.7) // Purple
+            }
+        }
+        return Theme.Colors.secondary
     }
     
     private func isCreator(_ user: User) -> Bool {
@@ -394,70 +636,187 @@ struct InviteCodeView: View {
     let inviteCode: String
     @State private var copiedToClipboard = false
     
+    // Animation states
+    @State private var showContent = false
+    @State private var pulseEffect = false
+    @State private var rotateEffect = false
+    
     var body: some View {
         NavigationStack {
-            VStack(spacing: 24) {
-                // Icon
-                Image(systemName: "person.badge.plus")
-                    .font(.system(size: 60))
-                    .foregroundColor(Theme.Colors.primary)
-                    .padding(.top, 40)
+            ZStack {
+                // Animated background elements
+                Color(UIColor.systemGroupedBackground).ignoresSafeArea()
                 
-                // Title
-                Text("Invite Others")
-                    .font(Theme.Typography.titleFontSystem)
-                    .foregroundColor(Theme.Colors.text)
+                // Background decorative elements
+                Circle()
+                    .fill(Theme.Colors.primary.opacity(0.07))
+                    .frame(width: 220, height: 220)
+                    .offset(x: 150, y: -150)
+                    .blur(radius: 60)
                 
-                // Description
-                Text("Share this code with others to invite them to your household")
-                    .font(Theme.Typography.bodyFontSystem)
-                    .foregroundColor(Theme.Colors.textSecondary)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 32)
+                Circle()
+                    .fill(Theme.Colors.accent.opacity(0.07))
+                    .frame(width: 180, height: 180)
+                    .offset(x: -150, y: 100)
+                    .blur(radius: 50)
                 
-                // Invite code display
-                VStack(spacing: 8) {
-                    Text("Invite Code")
-                        .font(Theme.Typography.captionFontSystem)
-                        .foregroundColor(Theme.Colors.textSecondary)
-                    
-                    Text(inviteCode)
-                        .font(.system(size: 32, weight: .bold, design: .monospaced))
-                        .kerning(2)
-                        .foregroundColor(Theme.Colors.primary)
-                        .padding(.vertical, 16)
-                        .padding(.horizontal, 24)
-                        .background(Theme.Colors.primary.opacity(0.1))
-                        .cornerRadius(Theme.Dimensions.cornerRadiusMedium)
-                }
-                .padding(.top, 16)
-                
-                // Copy button
-                Button {
-                    UIPasteboard.general.string = inviteCode
-                    copiedToClipboard = true
-                    
-                    // Hide the "Copied" message after a delay
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                        copiedToClipboard = false
+                VStack(spacing: 32) {
+                    // Animated icon
+                    ZStack {
+                        Circle()
+                            .fill(Theme.Colors.primary.opacity(0.1))
+                            .frame(width: 120, height: 120)
+                            .scaleEffect(pulseEffect ? 1.15 : 0.95)
+                            .animation(
+                                Animation.easeInOut(duration: 1.5)
+                                    .repeatForever(autoreverses: true),
+                                value: pulseEffect
+                            )
+                        
+                        Circle()
+                            .strokeBorder(
+                                AngularGradient(
+                                    gradient: Gradient(colors: [
+                                        Theme.Colors.primary.opacity(0.8),
+                                        Theme.Colors.primary.opacity(0.2),
+                                        Theme.Colors.primary.opacity(0.8)
+                                    ]),
+                                    center: .center
+                                ),
+                                lineWidth: 4
+                            )
+                            .frame(width: 110, height: 110)
+                            .rotationEffect(Angle(degrees: rotateEffect ? 360 : 0))
+                            .animation(
+                                Animation.linear(duration: 8)
+                                    .repeatForever(autoreverses: false),
+                                value: rotateEffect
+                            )
+                        
+                        Image(systemName: "person.badge.plus")
+                            .font(.system(size: 50, weight: .light))
+                            .symbolRenderingMode(.hierarchical)
+                            .foregroundColor(Theme.Colors.primary)
                     }
-                } label: {
-                    HStack {
-                        Image(systemName: copiedToClipboard ? "checkmark" : "doc.on.doc")
-                        Text(copiedToClipboard ? "Copied!" : "Copy to Clipboard")
+                    .padding(.top, 20)
+                    .opacity(showContent ? 1 : 0)
+                    .offset(y: showContent ? 0 : 20)
+                    .animation(.spring(response: 0.6, dampingFraction: 0.7).delay(0.1), value: showContent)
+                    
+                    // Title and Description
+                    VStack(spacing: 16) {
+                        Text("Invite Others")
+                            .font(Theme.Typography.titleFontSystem)
+                            .foregroundColor(Theme.Colors.text)
+                        
+                        Text("Share this code with others to invite them to your household")
+                            .font(Theme.Typography.bodyFontSystem)
+                            .foregroundColor(Theme.Colors.textSecondary)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 32)
                     }
-                    .font(Theme.Typography.bodyFontSystem.bold())
-                    .foregroundColor(.white)
-                    .frame(width: 200)
-                    .padding()
-                    .background(copiedToClipboard ? Theme.Colors.success : Theme.Colors.primary)
-                    .cornerRadius(Theme.Dimensions.cornerRadiusMedium)
-                    .animation(.spring(), value: copiedToClipboard)
+                    .opacity(showContent ? 1 : 0)
+                    .offset(y: showContent ? 0 : 20)
+                    .animation(.spring(response: 0.6, dampingFraction: 0.7).delay(0.2), value: showContent)
+                    
+                    // Invite code display with fancy styling
+                    VStack(spacing: 12) {
+                        Text("Invite Code")
+                            .font(Theme.Typography.captionFontSystem)
+                            .foregroundColor(Theme.Colors.textSecondary)
+                        
+                        Text(inviteCode)
+                            .font(.system(size: 36, weight: .bold, design: .monospaced))
+                            .kerning(3)
+                            .tracking(2)
+                            .foregroundColor(Theme.Colors.primary)
+                            .padding(.vertical, 20)
+                            .padding(.horizontal, 32)
+                            .background(
+                                ZStack {
+                                    RoundedRectangle(cornerRadius: Theme.Dimensions.cornerRadiusMedium)
+                                        .fill(Color.white)
+                                    
+                                    RoundedRectangle(cornerRadius: Theme.Dimensions.cornerRadiusMedium)
+                                        .stroke(
+                                            LinearGradient(
+                                                gradient: Gradient(colors: [
+                                                    Theme.Colors.primary.opacity(0.6),
+                                                    Theme.Colors.primary.opacity(0.2)
+                                                ]),
+                                                startPoint: .topLeading,
+                                                endPoint: .bottomTrailing
+                                            ),
+                                            lineWidth: 2
+                                        )
+                                }
+                            )
+                            .shadow(color: Theme.Colors.primary.opacity(0.1), radius: 8, x: 0, y: 4)
+                    }
+                    .opacity(showContent ? 1 : 0)
+                    .scaleEffect(showContent ? 1 : 0.9)
+                    .animation(.spring(response: 0.6, dampingFraction: 0.7).delay(0.3), value: showContent)
+                    
+                    // Copy button with enhanced animation
+                    Button {
+                        UIPasteboard.general.string = inviteCode
+                        withAnimation(.spring()) {
+                            copiedToClipboard = true
+                        }
+                        
+                        // Hide the "Copied" message after a delay
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                            withAnimation(.spring()) {
+                                copiedToClipboard = false
+                            }
+                        }
+                    } label: {
+                        HStack(spacing: 12) {
+                            Image(systemName: copiedToClipboard ? "checkmark" : "doc.on.doc")
+                                .font(.system(size: 18))
+                                .symbolEffect(
+                                    copiedToClipboard ? .bounce.down : .bounce.up,
+                                    options: .speed(1.5),
+                                    value: copiedToClipboard
+                                )
+                            
+                            Text(copiedToClipboard ? "Copied to Clipboard!" : "Copy to Clipboard")
+                                .fontWeight(.bold)
+                        }
+                        .font(Theme.Typography.bodyFontSystem)
+                        .foregroundColor(.white)
+                        .frame(height: 50)
+                        .frame(width: 260)
+                        .background(
+                            RoundedRectangle(cornerRadius: Theme.Dimensions.cornerRadiusMedium)
+                                .fill(
+                                    copiedToClipboard ? 
+                                    LinearGradient(
+                                        colors: [Theme.Colors.success, Theme.Colors.success.opacity(0.8)],
+                                        startPoint: .topLeading, 
+                                        endPoint: .bottomTrailing
+                                    ) :
+                                    LinearGradient(
+                                        colors: [Theme.Colors.primary, Theme.Colors.primary.opacity(0.8)],
+                                        startPoint: .topLeading,
+                                        endPoint: .bottomTrailing
+                                    )
+                                )
+                                .shadow(color: copiedToClipboard ? 
+                                        Theme.Colors.success.opacity(0.4) : 
+                                        Theme.Colors.primary.opacity(0.4),
+                                        radius: 8, x: 0, y: 4)
+                        )
+                    }
+                    .opacity(showContent ? 1 : 0)
+                    .offset(y: showContent ? 0 : 20)
+                    .animation(.spring(response: 0.6, dampingFraction: 0.7).delay(0.4), value: showContent)
+                    .buttonStyle(ScaleButtonStyle()) // Reusing the scale button style
+                    
+                    Spacer()
                 }
-                
-                Spacer()
+                .padding(.horizontal, 24)
             }
-            .padding(.horizontal, 24)
             .navigationTitle("Invite Code")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -465,6 +824,14 @@ struct InviteCodeView: View {
                     Button("Done") {
                         dismiss()
                     }
+                }
+            }
+            .onAppear {
+                // Start animations
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    showContent = true
+                    pulseEffect = true
+                    rotateEffect = true
                 }
             }
         }
