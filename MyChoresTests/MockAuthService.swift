@@ -18,7 +18,6 @@ class MockAuthService: AuthServiceProtocol {
     var errorMessage: String?
 
     // --- Control properties for testing ---
-    var currentUserIdToReturn: String? // Added
     var signInShouldSucceed: Bool = true
     var signUpShouldSucceed: Bool = true
     var refreshCurrentUserShouldSucceed: Bool = true
@@ -111,7 +110,7 @@ class MockAuthService: AuthServiceProtocol {
     }
 
     func getCurrentUserId() -> String? {
-        return currentUserIdToReturn // Modified
+        return currentUser?.id
     }
 
     func ensureCurrentProfileExists() async {

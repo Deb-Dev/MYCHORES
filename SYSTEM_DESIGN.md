@@ -1,4 +1,3 @@
-<!-- filepath: /Users/debchow/Documents/coco/MyChores/SYSTEM_DESIGN.md -->
 # MyChores System Design Document
 
 ## 1. System Overview
@@ -7,11 +6,11 @@ MyChores is a task management application designed for households to track and g
 
 ### 1.1 Core Features
 
-- User accounts and household management (Authentication via Firebase Auth)
-- Chore creation, assignment, and tracking (Data stored in Firestore)
-- Points system and leaderboards (Calculated from chore completion, stored in Firestore)
-- Achievement badges (Based on user activity, definitions stored with app, user achievements in Firestore)
-- Notifications and reminders (Using Firebase Cloud Messaging and UserNotifications framework)
+- User accounts and household management
+- Chore creation, assignment, and tracking
+- Points system and leaderboards
+- Achievement badges
+- Notifications and reminders
 
 ### 1.2 Target Platform
 
@@ -19,135 +18,347 @@ iOS devices using SwiftUI and following MVVM architecture.
 
 ## 2. Architecture
 
-The application follows the Model-View-ViewModel (MVVM) architectural pattern, with a distinct Service layer for business logic and backend communication.
+The application follows the Model-View-ViewModel (MVVM) architectural pattern:
 
 ```
-┌─────────────┐     ┌───────────────┐     ┌──────────────┐     ┌─────────────┐     ┌────────────────┐
-│     View    │◄────┤   ViewModel   │◄────┤    Service   │◄────┤    Model    │     │    Firebase    │
-│  (SwiftUI)  │     │  (Observable) │     │   (Logic &   │     │   (Data     │     │   (Backend)    │
-│ (UI Layer)  │     │ (Presentation │     │  API Calls)  │     │ Structures) │     │ (Auth, DB,    │
-│             │     │    Logic)     │     │              │     │             │     │ Notifications) │
-└─────────────┘     └───────────────┘     └──────────────┘     └─────────────┘     └────────────────┘
-        ▲                   │                     │                     │                   │
-        │                   │                     │                     │                   │
-        └───────────────────┴─────────────────────┴─────────────────────┴───────────────────┘
-              User Interaction          Data Binding &         Business Logic      Data Definition   Persistence &
-                                        Action Handling        & API Interface                       Cloud Services
+┌─────────────┐     ┌───────────────┐     ┌──────────────┐     ┌─────────────┐
+│     View    │◄────┤   ViewModel   │◄────┤    Service   │◄────┤    Model    │
+│  (SwiftUI)  │     │  (Observable) │     │   (Logic)    │     │   (Data)    │
+└─────────────┘     └───────────────┘     └──────────────┘     └─────────────┘
 ```
 
 ### 2.1 Architectural Components
 
 #### 2.1.1 Models
 
-Data structures that represent the core entities of the application. These are typically `struct`s conforming to `Codable` for easy serialization/deserialization with Firestore.
+Data structures that represent the core entities of the application:
+- `User`: Represents a user with personal details, household memberships, points, and badges
+- `Household`: Represents a group of users sharing chores and leaderboards
+- `Chore`: Represents a task with properties like title, description, due date, assignee, etc.
+- `Badge`: Represents an achievement that users can earn
 
-Key Models (as per UML):
--   `User`: Represents a user with personal details (name, email, photoURL), household memberships (`householdIds`), points (total, weekly, monthly), earned badges (`earnedBadges`), FCM token, and privacy settings.
--   `Household`: Represents a group of users (`memberUserIds`) sharing chores, with a name, owner (`ownerUserId`), and a unique `inviteCode`.
--   `Chore`: Represents a task with properties like title, description, `householdId`, `assignedToUserId`, `createdByUserId`, `dueDate`, completion status (`isCompleted`, `completedAt`, `completedByUserId`), `pointValue`, and recurrence details (`isRecurring`, `recurrenceType`, `nextOccurrenceDate`).
--   `Badge`: Represents an achievement (`badgeKey`, name, description, icon, color) that users can earn, often tied to `requiredTaskCount`.
--   `RecurrenceType`: An `enum` defining how chores can recur (e.g., `daily`, `weekly`, `monthly`).
+#### 2.1.2 Views
 
-#### 2.1.2 Views (SwiftUI)
+SwiftUI views responsible for rendering the user interface:
+- Auth views (login, registration)
+- Household management views
+- Chore list and detail views
+- Leaderboard views
+- Achievement views
 
-The UI layer of the application, responsible for presenting data to the user and capturing user input. Views are typically lightweight and delegate business logic to ViewModels.
+#### 2.1.3 ViewModels
 
-Key Views (as per UML and project structure):
--   `MyChoresApp`: The main application entry point, sets up the `AppDelegate` and initial `AuthViewModel`.
--   `AppDelegate`: Handles app lifecycle events, including Firebase initialization and push notification setup.
--   `MainView`: Root view that observes `AuthViewModel` to switch between authentication flow (`AuthView` - not explicitly in UML but implied) and the main app content (`HomeView`).
--   `HomeView`: Main container view after authentication, likely hosting `ChoresView`, `HouseholdView`, `LeaderboardView`, `AchievementsView`, and `ProfileView`.
--   `ChoresView`: Displays and manages lists of chores, allows adding new chores.
-    -   `ChoreListView`: A dedicated list for displaying chores.
-    -   `ChoreRowView`: Represents a single chore in a list.
-    -   `AddChoreView`: Form for creating new chores.
-    -   `ChoreDetailView`: Shows details of a specific chore.
-    -   `FilterControlsView`: UI for filtering chores.
--   `HouseholdView`: Manages household settings, members, and joining/creating households.
-    -   `InviteCodeView`: Displays household invite code.
-    -   `CreateHouseholdView`, `JoinHouseholdView`: Forms for household management.
--   `LeaderboardView`: Displays user rankings based on points.
-    -   `UserAvatarView`: Component for displaying user avatars.
--   `AchievementsView`: Displays user's earned and unearned badges.
-    -   `BadgeCardView`, `BadgeDetailView`: Components for displaying badge information.
--   `ProfileView`: (Placeholder) For user profile management.
--   Reusable Components: `EmptyStateView`, `CardView`, `ErrorAlertView`, `ToastManager`, `AnimatedView`, `ShimmeringView`.
-
-#### 2.1.3 ViewModels (ObservableObjects)
-
-Act as intermediaries between Views and Services. They fetch and prepare data from Services for display in Views, and they handle user actions from Views by invoking Service methods. ViewModels are `ObservableObject`s, allowing Views to subscribe to their changes.
-
-Key ViewModels (as per UML):
--   `AuthViewModel`: Manages authentication state (`authState`, `currentUser`), handles sign-in, sign-up, sign-out, and password reset logic by interacting with `AuthService`.
--   `ChoreViewModel`: Manages chore data (`chores`, `selectedChore`) for a specific household, handles fetching, adding, updating, completing, and deleting chores via `ChoreService`.
--   `HouseholdViewModel`: Manages household data (`households`, `selectedHousehold`, `householdMembers`), handles fetching household details, creating/joining/leaving households, and inviting members through `HouseholdService` and `UserService`.
--   `LeaderboardViewModel`: Fetches and prepares leaderboard data (`weeklyLeaderboard`, `monthlyLeaderboard`) from `UserService` for a specific household.
--   `AchievementsViewModel`: Fetches and manages user achievement data (`allBadges`, `earnedBadges`, `unearnedBadges`) via `UserService`.
+Intermediaries between Views and Services, implementing business logic and state management:
+- `AuthViewModel`: Manages authentication state
+- `ChoreViewModel`: Handles chore operations and filtering
+- `HouseholdViewModel`: Manages household data
+- `LeaderboardViewModel`: Computes leaderboard rankings
+- `AchievementsViewModel`: Tracks and displays achievements
 
 #### 2.1.4 Services
 
-Encapsulate business logic, data manipulation, and communication with external systems like Firebase. They provide a clean API for ViewModels to interact with. Services are typically singletons or injected dependencies.
+Handle data operations and external service integrations:
+- `AuthService`: Firebase Authentication integration
+- `ChoreService`: Chore CRUD operations
+- `UserService`: User management and point tracking
+- `HouseholdService`: Household management
+- `NotificationService`: Push notification handling
 
-Key Services (Protocols & Implementations, as per UML):
--   `AuthServiceProtocol` / `AuthService`: Handles all authentication-related operations with Firebase Auth (sign-in, sign-up, sign-out, password reset, current user state). Also coordinates with `UserService` to create/fetch user profiles in Firestore upon authentication.
--   `UserServiceProtocol` / `UserService`: Manages user data in Firestore (creating, fetching, updating user profiles, including points and badges).
--   `ChoreServiceProtocol` / `ChoreService`: Manages chore data in Firestore (creating, fetching, updating, deleting chores for households or users).
--   `HouseholdServiceProtocol` / `HouseholdService`: Manages household data in Firestore (creating, fetching, updating households, managing members, handling invite codes).
--   `NotificationServiceProtocol` / `NotificationService`: Handles requesting notification permissions, scheduling local chore reminders, and potentially interacting with Firebase Cloud Messaging for remote notifications.
+## 3. Database Design
 
-### 2.2 Utilities
+The application uses Firebase Firestore as its primary database, with the following collections:
 
--   `Theme`: Defines the app's color palette, typography, and dimensions for consistent styling.
--   `DateExtensions`: Provides convenience methods for date manipulation.
+### 3.1 Collections
 
-## 3. Data Flow Examples
+#### 3.1.1 Users Collection
 
-### 3.1 User Login
+```
+users/{userId}
+{
+  id: string,              // Document ID (matches Firebase Auth UID)
+  name: string,            // Display name
+  email: string,           // Email address
+  photoURL: string?,       // Profile picture URL
+  householdIds: string[],  // List of household IDs the user belongs to
+  fcmToken: string?,       // Firebase Cloud Messaging token for notifications
+  createdAt: timestamp,    // User creation date
+  totalPoints: number,     // All-time points
+  weeklyPoints: number,    // Points for current week
+  monthlyPoints: number,   // Points for current month
+  currentWeekStartDate: timestamp?,  // Start of current week for points reset
+  currentMonthStartDate: timestamp?, // Start of current month for points reset
+  earnedBadges: string[]   // List of badge keys earned
+}
+```
 
-1.  **View (`AuthView` or similar):** User enters credentials and taps "Login".
-2.  **ViewModel (`AuthViewModel`):** `signIn(email:, password:)` method is called. ViewModel updates `isLoading` state.
-3.  **Service (`AuthService`):** `signIn` method makes an asynchronous call to Firebase Authentication.
-    *   On success, Firebase Auth returns a user object. `AuthService` then fetches/creates the corresponding user profile from Firestore via `UserService`.
-    *   `AuthService` updates its `@Published` properties (`currentUser`, `authState`).
-4.  **ViewModel (`AuthViewModel`):** Subscribed to `AuthService` changes, its `@Published` properties (`currentUser`, `authState`) update automatically. `isLoading` is set to false.
-5.  **View (`MainView`):** Observes `AuthViewModel`. The change in `authState` triggers a UI update, navigating the user to `HomeView`.
+#### 3.1.2 Households Collection
 
-### 3.2 Fetching Chores
+```
+households/{householdId}
+{
+  id: string,              // Document ID
+  name: string,            // Household name
+  createdByUserId: string, // User who created the household
+  inviteCode: string,      // Code for others to join
+  memberUserIds: string[], // List of user IDs in the household
+  createdAt: timestamp     // Creation date
+}
+```
 
-1.  **View (`ChoresView`):** Appears on screen or user initiates a refresh.
-2.  **ViewModel (`ChoreViewModel`):** `fetchChores()` method is called (e.g., in `onAppear` or on refresh action). ViewModel sets `isLoading` to true.
-3.  **Service (`ChoreService`):** `fetchChores(forHouseholdId:)` method queries Firestore for chores belonging to the current household.
-4.  **Service (`ChoreService`):** Receives chore data, decodes it into `[Chore]` models.
-5.  **ViewModel (`ChoreViewModel`):** Receives the `[Chore]` array from the service, updates its `@Published var chores` property. `isLoading` is set to false.
-6.  **View (`ChoresView` / `ChoreListView`):** Observes `ChoreViewModel`. The change to `chores` automatically updates the list displayed to the user.
+#### 3.1.3 Chores Collection
 
-## 4. Firebase Integration
+```
+chores/{choreId}
+{
+  id: string,              // Document ID
+  title: string,           // Chore title
+  description: string,     // Description
+  householdId: string,     // Household this chore belongs to
+  assignedToUserId: string?, // User assigned to complete the chore
+  createdByUserId: string?,  // User who created the chore
+  dueDate: timestamp?,     // When the chore is due
+  isCompleted: boolean,    // Whether the chore is completed
+  createdAt: timestamp,    // Creation date
+  completedAt: timestamp?, // When the chore was completed
+  completedByUserId: string?, // User who completed the chore
+  pointValue: number,      // Points awarded for completion
+  isRecurring: boolean,    // Whether this is a recurring chore
+  recurrenceType: string?, // Daily, weekly, or monthly
+  recurrenceInterval: number?, // Interval between recurrences
+  recurrenceDaysOfWeek: number[]?, // For weekly recurrence
+  recurrenceDayOfMonth: number?,   // For monthly recurrence
+  recurrenceEndDate: timestamp?,   // End date for recurrence
+  nextOccurrenceDate: timestamp?   // Date of next occurrence
+}
+```
 
-MyChores leverages Firebase for its backend-as-a-service capabilities:
+#### 3.1.4 Badges (Predefined in App)
 
--   **Firebase Authentication:** Handles user sign-up, sign-in, password reset, and secure user session management.
--   **Firebase Firestore:** A NoSQL document database used to store all application data, including:
-    -   `users`: Collection for user profiles.
-    -   `households`: Collection for household groups.
-    -   `chores`: Collection for tasks, often sub-collections of households or directly queried by `householdId`.
-    -   (Data modeling will ensure efficient queries, e.g., using `householdId` on chores for easy fetching).
--   **Firebase Cloud Messaging (FCM):** Used for sending push notifications and reminders to users about due chores or other important events. The `AppDelegate` and `NotificationService` manage FCM token registration and message handling.
--   **Firebase Storage (Optional but common):** Could be used if profile pictures or other user-generated content storage is required. (Not explicitly detailed in current UML but a common extension).
--   **Firestore Security Rules:** Defined in `firestore.rules` to protect data integrity and ensure users can only access and modify data they are authorized to. These rules are crucial for production readiness.
+Badges are stored directly in the app code as predefined constants for simplicity in the MVP:
 
-## 5. Key Design Considerations & Future Enhancements
+```
+static let predefinedBadges = [
+  {
+    badgeKey: "first_chore",
+    name: "First Step",
+    description: "Completed your first chore",
+    iconName: "1.circle.fill",
+    colorName: "Primary",
+    requiredTaskCount: 1
+  },
+  // More badges...
+]
+```
 
--   **Offline Support:** Currently, the app relies on an active internet connection. Future enhancements could include Firestore offline caching for a better user experience in low-connectivity scenarios.
--   **Scalability:** Firestore is designed for scalability. Data modeling choices (e.g., avoiding deeply nested data that requires complex queries) are important.
--   **Error Handling:** Robust error handling is implemented across ViewModel and Service layers, with errors propagated to the View for user feedback (e.g., via `ErrorAlertView` or `ToastManager`).
--   **Testing:** Unit tests for ViewModels and Services (using mock services like `MockAuthService`, `MockUserService`) are in place. UI tests ensure key user flows work as expected.
--   **Accessibility:** SwiftUI provides good accessibility features. Adherence to accessibility best practices is important.
--   **Real-time Updates:** Firestore provides real-time listeners. These are used (or can be easily integrated) to update UI instantly when data changes in the backend (e.g., a new chore added by another household member).
--   **Internationalization (i18n) / Localization (l10n):** For broader reach, string localization would be a future step.
+### 3.2 Security Rules
 
-## 6. Deployment
+Firestore security rules enforce:
+- User authentication for all operations
+- Users can read all household members' data but only edit their own
+- Chores can only be accessed by members of the associated household
+- Data validation for required fields and value constraints
 
--   iOS app deployed via Apple App Store.
--   Firestore rules deployed using Firebase CLI (`firebase deploy --only firestore:rules`).
+## 4. External Services & APIs
 
-This document provides a high-level overview of the MyChores application's system design. It should be updated as the application evolves.
+### 4.1 Firebase Services
+
+- **Firebase Authentication**: User authentication and management
+- **Firestore**: NoSQL database for application data
+- **Firebase Cloud Messaging (FCM)**: Push notifications
+- **Firebase Cloud Functions**: Server-side notification delivery and scheduled tasks
+
+### 4.2 Apple Services
+
+- **UserNotifications**: Local notifications for chore reminders
+- **SwiftUI**: UI framework
+- **Combine**: Reactive programming for data binding
+
+## 5. Key Workflows
+
+### 5.1 User Registration & Household Setup
+
+1. User creates an account with email/password
+2. Upon first login, user creates a new household or joins an existing one via invite code
+3. User data and household membership are stored in Firestore
+
+### 5.2 Chore Creation & Assignment
+
+1. User creates a chore with title, description, due date, assignee
+2. For recurring chores, recurrence pattern is specified
+3. Chore is stored in Firestore with associated household ID
+4. Notifications are scheduled based on due date
+
+### 5.3 Chore Completion
+
+1. User marks a chore as completed
+2. Points are awarded to the completer's total, weekly, and monthly scores
+3. If recurring, next occurrence is automatically created
+4. Badge eligibility is checked and awarded if conditions are met
+5. Leaderboards are updated automatically via Firestore listeners
+
+### 5.4 Notification Flow
+
+1. When a chore is created with a due date, local notifications are scheduled
+2. Additionally, server-side notifications are registered via FCM
+3. At the appropriate time, notifications are delivered to the assigned user
+4. For recurring tasks, new notifications are scheduled when the next occurrence is created
+
+## 6. State Management
+
+### 6.1 SwiftUI Property Wrappers
+
+- `@State`: For local component state
+- `@StateObject`: For view-owned view models
+- `@ObservedObject`: For view model dependencies
+- `@Published`: For observable properties in view models
+- `@Binding`: For passing writeable state between views
+
+### 6.2 Data Flow
+
+- One-way data flow from Services → ViewModels → Views
+- User actions flow from Views → ViewModels → Services
+- Real-time updates via Firestore listeners and @Published properties
+
+## 7. Synchronization Strategy
+
+### 7.1 Real-time Updates
+
+- Firestore listeners provide real-time updates when data changes
+- ViewModels expose @Published properties that automatically update the UI
+- Critical operations use transactions to ensure data consistency
+
+### 7.2 Offline Support
+
+- Firestore provides offline persistence to allow app usage without network
+- Changes are synchronized when connection is restored
+- Local notifications work regardless of network status
+
+## 8. Security Considerations
+
+### 8.1 Authentication
+
+- Firebase Authentication handles user identity
+- Email/password authentication for MVP
+- Secure storage of authentication tokens
+
+### 8.2 Authorization
+
+- Firestore rules restrict data access based on user and household relationships
+- Client-side validation reinforced by server-side rules
+- All operations verify appropriate permissions
+
+### 8.3 Data Privacy
+
+- User data is only visible to household members
+- Points and achievements are only shared within households
+- No external sharing in MVP
+
+## 9. Performance Considerations
+
+### 9.1 Database Queries
+
+- Efficient querying with appropriate indexes
+- Batch operations for multiple updates
+- Pagination for large datasets (e.g., historical chores)
+
+### 9.2 UI Performance
+
+- LazyVStack/LazyHStack for list rendering
+- Minimal view redraws using appropriate state scoping
+- Image caching for profile pictures
+
+### 9.3 Background Processing
+
+- Notifications and reminders use Firebase Cloud Functions
+- Point calculations and badge awarding happen server-side when possible
+- Weekly/monthly point resets handled automatically
+
+## 10. Extensibility Points
+
+### 10.1 Future Features
+
+- **Sign in with Apple/Google**: Additional authentication methods
+- **Task Assignment Notifications**: Alert when assigned a new task
+- **Complex Badges**: Based on streaks, particular chore types, etc.
+- **Chore Categories**: Grouping chores by type or location
+- **Chore Templates**: Pre-defined common chores for quick creation
+- **Custom Reminder Times**: User preferences for notification timing
+- **Household Chat**: In-app communication for household members
+
+### 10.2 Extension Mechanisms
+
+- Clear service interfaces allow new features without changing core structure
+- Badge system designed for easy addition of new achievements
+- Notification service supports multiple notification types
+
+## 11. Testing Strategy
+
+### 11.1 Unit Tests
+
+- ViewModels: Business logic and state management
+- Models: Data transformation and computed properties
+- Services: API interactions (mocked)
+
+### 11.2 Integration Tests
+
+- Services: Interactions with Firebase (using emulators)
+- ViewModels: Coordination with multiple services
+
+### 11.3 UI Tests
+
+- View navigation and interactions
+- Data display correctness
+- Accessibility testing
+
+## 12. Deployment Process
+
+### 12.1 Firebase Configuration
+
+- Security rules deployment via script
+- Cloud Functions deployment via Firebase CLI
+
+### 12.2 App Store Submission
+
+- App Store Connect configuration
+- TestFlight distribution for beta testing
+- App Store review guidelines compliance
+
+## 13. Monitoring & Analytics
+
+### 13.1 Error Handling
+
+- Centralized error handling in services
+- User-friendly error messages
+- Logging for debugging
+
+### 13.2 Analytics (Future)
+
+- User engagement metrics
+- Feature usage tracking
+- Performance monitoring
+
+## 14. Technical Debt & Limitations
+
+### 14.1 Known Limitations
+
+- Member removal and ownership transfer not implemented in MVP
+- Basic badge system with limited types
+- No complex notification customization in-app
+
+### 14.2 Areas for Improvement
+
+- Dependency injection pattern instead of singleton services
+- More comprehensive error handling and recovery
+- Enhanced offline capabilities
+
+## 15. Glossary
+
+- **Household**: A group of users sharing chores and leaderboards
+- **Chore**: A task that needs to be completed, can be recurring
+- **Badge**: An achievement awarded for completing certain milestones
+- **Leaderboard**: A ranking of users based on points earned
+- **Recurrence**: Pattern for automatically creating future instances of a chore
+
+---
+
+*This system design document was created on May 3, 2025, and reflects the MVP implementation of the MyChores app.*

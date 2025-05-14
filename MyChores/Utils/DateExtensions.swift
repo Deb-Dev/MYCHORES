@@ -62,63 +62,23 @@ extension Date {
         let calendar = Calendar.current
         let now = Date()
         
-        // Normalize dates to the start of the day for accurate day difference calculation
-        let startOfSelf = calendar.startOfDay(for: self)
-        let startOfNow = calendar.startOfDay(for: now)
-        
-        if calendar.isDateInToday(startOfSelf) {
+        if calendar.isDateInToday(self) {
             return "Due today"
         }
         
-        let components = calendar.dateComponents([.day], from: startOfNow, to: startOfSelf)
+        let components = calendar.dateComponents([.day], from: now, to: self)
         
         if let days = components.day {
-            if days == 1 {
-                return "Due tomorrow"
-            } else if days > 1 {
-                return "Due in \(days) days"
-            } else if days == -1 {
-                 return "Overdue by 1 day"
-            } else if days < -1 { // Overdue
-                return "Overdue by \(abs(days)) days"
+            if days > 0 {
+                return "Due in \(days) \(days == 1 ? "day" : "days")"
+            } else {
+                return "Overdue by \(abs(days)) \(abs(days) == 1 ? "day" : "days")"
             }
         }
         
-        // Fallback format if components calculation fails or for same day but different times (already handled by isDateInToday)
+        // Fallback format if components calculation fails
         let formatter = DateFormatter()
         formatter.dateFormat = "MMM d, yyyy"
         return "Due \(formatter.string(from: self))"
-    }
-
-    /// Calculates the Nth weekday of a given month and year.
-    /// - Parameters:
-    ///   - ordinal: The ordinal number (1 for first, 2 for second, -1 for last).
-    ///   - weekday: The desired weekday (1 for Sunday, 2 for Monday, ..., 7 for Saturday).
-    ///   - month: The month.
-    ///   - year: The year.
-    /// - Returns: The Date of the Nth weekday, or nil if not found.
-    static func nthWeekday(_ ordinal: Int, weekday: Int, ofMonth month: Int, year: Int) -> Date? {
-        let calendar = Calendar.current
-        var components = DateComponents()
-        components.year = year
-        components.month = month
-        components.weekday = weekday
-        
-        if ordinal == -1 { // Last occurrence of the weekday
-            components.weekdayOrdinal = -1 // This directly asks for the last one
-        } else {
-            components.weekdayOrdinal = ordinal
-        }
-        
-        return calendar.date(from: components)
-    }
-
-    /// Returns the date for the last day of the current month.
-    func lastDayOfMonth() -> Date? {
-        let calendar = Calendar.current
-        guard let range = calendar.range(of: .day, in: .month, for: self) else { return nil }
-        var components = calendar.dateComponents([.year, .month], from: self)
-        components.day = range.upperBound - 1
-        return calendar.date(from: components)
     }
 }

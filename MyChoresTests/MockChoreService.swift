@@ -16,7 +16,7 @@ class MockChoreService: ChoreServiceProtocol {
         dueDate: Date?,
         pointValue: Int,
         isRecurring: Bool,
-        recurrenceType: RecurrenceType?,
+        recurrenceType: MyChores.RecurrenceType?,
         recurrenceInterval: Int?,
         recurrenceDaysOfWeek: [Int]?,
         recurrenceDayOfMonth: Int?,

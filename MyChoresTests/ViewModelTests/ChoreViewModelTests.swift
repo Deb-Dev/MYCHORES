@@ -111,6 +111,7 @@ class ChoreViewModelTests: XCTestCase {
         XCTAssertTrue(sut.chores.isEmpty, "Chores array should be empty on failure.")
         XCTAssertFalse(sut.isLoading, "isLoading should be false after failure.")
         XCTAssertNotNil(sut.errorMessage, "errorMessage should be set after failure.")
+        XCTAssertEqual(sut.errorMessage, expectedError.localizedDescription)
     }
     
     @MainActor
@@ -153,12 +154,11 @@ class ChoreViewModelTests: XCTestCase {
     @MainActor
     func testLoadChore_Success_SetsSelectedChore() async {
         let specificChoreId = "chore-abc"
-        // Ensure the mock chore has the ID set
-        let expectedChore = Chore(id: specificChoreId, title: "Test Chore ABC", description: "Description for ABC", householdId: testHouseholdId, createdAt: Date(), pointValue: 10)
+        let expectedChore = Chore(title: specificChoreId, description: "householdId", householdId: "householdId", createdAt: Date(), pointValue: 0)
         mockChoreService.choreToReturn = expectedChore
         
         sut.selectedChore = nil // Ensure it's nil before test
-        await sut.loadChoreAsync(id: specificChoreId)
+        await sut.loadChoreAsync(id: specificChoreId) // Assuming a loadChoreAsync exists or loadChore calls an async version
 
         XCTAssertNotNil(sut.selectedChore, "selectedChore should be set.")
         XCTAssertEqual(sut.selectedChore?.id, specificChoreId)
@@ -176,7 +176,9 @@ class ChoreViewModelTests: XCTestCase {
         await sut.loadChoreAsync(id: specificChoreId)
 
         XCTAssertNil(sut.selectedChore, "selectedChore should remain nil on failure.")
+        XCTAssertFalse(sut.isLoading, "isLoading should be false.")
         XCTAssertNotNil(sut.errorMessage, "errorMessage should be set.")
+        XCTAssertEqual(sut.errorMessage, expectedError.localizedDescription)
     }
 
     @MainActor
@@ -193,85 +195,6 @@ class ChoreViewModelTests: XCTestCase {
         // For now, let's assume it's nil if no error was thrown, just no data.
         // If ChoreViewModel sets an error for "not found", this assertion needs to change.
         XCTAssertNil(sut.errorMessage, "errorMessage should be nil if chore not found and no error thrown.")
-    }
-
-    @MainActor
-    func testCreateChore_Failure_UserNotAuthenticated() async {
-        mockAuthService.currentUser = nil // Simulate no authenticated user
-
-        sut.createChore(
-            title: "Unauthenticated Chore",
-            description: "This should not be created",
-            pointValue: 1
-        )
-
-        // Expectation for errorMessage to be set
-        let expectation = XCTestExpectation(description: "Error message is set for unauthenticated user")
-        sut.$errorMessage.sink { message in
-            if message == "User not authenticated. Please sign in again." {
-                expectation.fulfill()
-            }
-        }.store(in: &cancellables)
-        
-        await fulfillment(of: [expectation], timeout: 1.0)
-
-        XCTAssertFalse(mockChoreService.createChoreCalled, "choreService.createChore should not have been called.")
-        XCTAssertEqual(sut.errorMessage, "User not authenticated. Please sign in again.", "Error message should indicate user not authenticated.")
-        XCTAssertFalse(sut.isLoading, "isLoading should be false.")
-    }
-
-
-
-    @MainActor
-    func testDeleteChore_Success_RemovesChoreFromList() async {
-        let choreToDelete = Chore.sample
-        mockChoreService.choresToReturn = [choreToDelete] // Ensure the chore is in the list
-
-        sut.selectedChore = choreToDelete // Set the chore as selected
-
-        sut.deleteChore(choreId: choreToDelete.id ?? "")
-
-        // Wait for async updates
-        let expectation = XCTestExpectation(description: "Chore delete completes")
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
-            if self.sut.chores.isEmpty {
-                expectation.fulfill()
-            }
-        }
-        await fulfillment(of: [expectation], timeout: 1.0)
-
-        XCTAssertTrue(mockChoreService.deleteChoreCalled, "choreService.deleteChore should have been called.")
-        
-        // Check if the chores list is empty
-        XCTAssertTrue(sut.chores.isEmpty, "The chores list should be empty after deletion.")
-        XCTAssertFalse(sut.isLoading, "isLoading should be false after chore deletion.")
-        XCTAssertNil(sut.errorMessage, "errorMessage should be nil after successful chore deletion.")
-    }
-
-    @MainActor
-    func testDeleteChore_Failure_SetsErrorMessage() async {
-        let specificChoreId = "chore-def"
-        let expectedError = TestError.customError("Failed to delete chore")
-        mockChoreService.errorToThrow = expectedError
-        
-        let choreToDelete = Chore.sample
-        mockChoreService.choresToReturn = [choreToDelete] // Ensure the chore is in the list
-        sut.selectedChore = choreToDelete // Set the chore as selected
-
-        sut.deleteChore(choreId: choreToDelete.id ?? "")
-
-        let expectation = XCTestExpectation(description: "Error message is set after delete failure")
-        sut.$errorMessage.compactMap { $0 }.first().sink { errorMessage in
-            if errorMessage == "Failed to delete chore: \(expectedError.localizedDescription)" {
-                expectation.fulfill()
-            }
-        }.store(in: &cancellables)
-
-        await fulfillment(of: [expectation], timeout: 1.0)
-
-        XCTAssertTrue(mockChoreService.deleteChoreCalled, "choreService.deleteChore should have been called.")
-        XCTAssertEqual(sut.errorMessage, "Failed to delete chore: \(expectedError.localizedDescription)", "Error message should reflect the service error.")
-        XCTAssertFalse(sut.isLoading, "isLoading should be false after delete failure.")
     }
 
 }

@@ -1,7 +1,6 @@
 ## General
 Before making any changes, check the existing code for similar implementations to avoid duplication.
 Always try to find the root cause of any issues you encounter and fix them rather than applying quick fixes.
-Always look for similar possible failures in relevant files when fixing an issue.
 Ask preplexity for any firebase, firestore or related usages to check the latest documentation.
 Follow the same architectural and stylistic patterns consistently throughout the project.
 firestore rules are in the firestore.rules file.

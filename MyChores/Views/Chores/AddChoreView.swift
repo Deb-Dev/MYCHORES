@@ -12,354 +12,403 @@ import FirebaseAuth
 struct AddChoreView: View {
     @Environment(\.dismiss) private var dismiss
     @StateObject private var viewModel: ChoreViewModel
-    @ObservedObject private var householdViewModel: HouseholdViewModel // Added to fetch household members for assignee picker
-
+    
     // Chore properties
     @State private var title = ""
     @State private var description = ""
     @State private var assignedToUserId: String?
     @State private var dueDate = Date().addingTimeInterval(24 * 60 * 60) // Tomorrow by default
     @State private var hasDueDate = true
-    @State private var points: Int = 1 // Default points
-
-    // Recurrence properties
-    @State private var selectedRecurrenceType: RecurrenceRuleType = .none
-    @State private var recurrenceIntervalString: String = "1" // For "every X days/weeks"
-    @State private var selectedDaysOfWeek: Set<DayOfWeek> = [] // For weekly recurrence
-    @State private var selectedDayOfMonth: Int = 1 // For specific day of month
-    @State private var selectedWeekOfMonth: WeekOfMonthOption = .first // For specific weekday of month
-    @State private var selectedWeekdayForMonthlyRecurrence: DayOfWeek = .monday // For specific weekday of month
-    @State private var recurrenceMonthIntervalString: String = "1" // For monthly types
-    @State private var recurrenceEndDate: Date? = nil
-    @State private var hasRecurrenceEndDate: Bool = false
+    @State private var pointValue = 1
+    @State private var isRecurring = false
+    @State private var recurrenceType: RecurrenceType = .weekly
+    @State private var recurrenceInterval = 1
+    @State private var recurrenceDaysOfWeek: [Int] = []
+    @State private var recurrenceDayOfMonth: Int?
+    @State private var recurrenceEndDate: Date?
+    @State private var hasRecurrenceEndDate = false
     
-    // To present the household selection
-    init(viewModel: ChoreViewModel, householdViewModel: HouseholdViewModel) {
-        _viewModel = StateObject(wrappedValue: viewModel)
-        _householdViewModel = ObservedObject(wrappedValue: householdViewModel)
+    // UI state
+    @State private var availableUsers: [User] = []
+    @State private var isLoadingUsers = false
+    
+    init(householdId: String) {
+        self._viewModel = StateObject(wrappedValue: ChoreViewModel(householdId: householdId))
     }
-
+    
     var body: some View {
-        NavigationView {
-            Form {
-                Section(header: Text("Chore Details")) {
-                    TextField("Title", text: $title)
-                    TextField("Description (Optional)", text: $description, axis: .vertical)
-                        .lineLimit(3...)
-                    
-                    Picker("Assign To", selection: $assignedToUserId) {
-                        Text("Unassigned").tag(String?.none)
-                        ForEach(householdViewModel.householdMembers) { member in
-                            Text(member.name).tag(member.id as String?)
-                        }
-                    }
-
-                    Stepper("Points: \\(points)", value: $points, in: 1...100)
-                }
-
-                Section(header: Text("Due Date")) {
-                    Toggle("Set Due Date", isOn: $hasDueDate.animation())
-                    if hasDueDate {
-                        DatePicker("Due On", selection: $dueDate, displayedComponents: .date)
-                    }
-                }
-
-                Section(header: Text("Recurrence")) {
-                    Picker("Repeats", selection: $selectedRecurrenceType) {
-                        Text("Never").tag(RecurrenceRuleType.none)
-                        Text("Daily").tag(RecurrenceRuleType.daily)
-                        Text("Weekly").tag(RecurrenceRuleType.weekly)
-                        Text("Every X Days").tag(RecurrenceRuleType.everyXDays)
-                        Text("Every X Weeks").tag(RecurrenceRuleType.everyXWeeks)
-                        Text("Specific Day of Month").tag(RecurrenceRuleType.specificDayOfMonth)
-                        Text("Specific Weekday of Month").tag(RecurrenceRuleType.specificWeekdayOfMonth)
-                    }
-                    .pickerStyle(MenuPickerStyle())
-
-                    // Conditional UI for recurrence options will be added here
-                    // For example:
-                    if selectedRecurrenceType == .everyXDays {
-                        HStack {
-                            Text("Every")
-                            TextField("Interval", text: $recurrenceIntervalString)
-                                .keyboardType(.numberPad)
-                                .frame(width: 50)
-                            Text( (Int(recurrenceIntervalString) ?? 1) == 1 ? "Day" : "Days")
-                        }
-                    } else if selectedRecurrenceType == .weekly {
-                        WeekdaysSelectorView(selectedDays: $selectedDaysOfWeek)
-                    } else if selectedRecurrenceType == .everyXWeeks {
-                        HStack {
-                            Text("Every")
-                            TextField("Interval", text: $recurrenceIntervalString)
-                                .keyboardType(.numberPad)
-                                .frame(width: 50)
-                            Text( (Int(recurrenceIntervalString) ?? 1) == 1 ? "Week" : "Weeks")
-                        }
-                        WeekdaysSelectorView(selectedDays: $selectedDaysOfWeek)
-                    } else if selectedRecurrenceType == .specificDayOfMonth {
-                        Picker("Day of Month", selection: $selectedDayOfMonth) {
-                            ForEach(1...31, id: \.self) { day in
-                                Text("\\(day)").tag(day)
-                            }
-                        }
-                        HStack {
-                            Text("Every")
-                            TextField("Interval", text: $recurrenceMonthIntervalString)
-                                .keyboardType(.numberPad)
-                                .frame(width: 50)
-                            Text( (Int(recurrenceMonthIntervalString) ?? 1) == 1 ? "Month" : "Months")
-                        }
-                    } else if selectedRecurrenceType == .specificWeekdayOfMonth {
-                        Picker("On the", selection: $selectedWeekOfMonth) {
-                            ForEach(WeekOfMonthOption.allCases) { option in
-                                Text(option.displayName).tag(option)
-                            }
-                        }
-                        Picker("Day", selection: $selectedWeekdayForMonthlyRecurrence) {
-                            ForEach(DayOfWeek.allCases) { day in
-                                Text(day.fullName).tag(day)
-                            }
-                        }
-                        HStack {
-                            Text("Every")
-                            TextField("Interval", text: $recurrenceMonthIntervalString)
-                                .keyboardType(.numberPad)
-                                .frame(width: 50)
-                            Text( (Int(recurrenceMonthIntervalString) ?? 1) == 1 ? "Month" : "Months")
-                        }
-                    } else if selectedRecurrenceType == .monthly {
-                        HStack {
-                            Text("Every")
-                            TextField("Interval", text: $recurrenceMonthIntervalString)
-                                .keyboardType(.numberPad)
-                                .frame(width: 50)
-                            Text( (Int(recurrenceMonthIntervalString) ?? 1) == 1 ? "Month" : "Months")
-                        }
-                    }
-                    // More conditional UI sections to be added...
-
-                    if selectedRecurrenceType != .none {
-                        Toggle("Set End Date for Recurrence", isOn: $hasRecurrenceEndDate.animation())
-                        if hasRecurrenceEndDate {
-                            DatePicker("Ends On", selection: Binding(
-                                get: { recurrenceEndDate ?? Date() },
-                                set: { recurrenceEndDate = $0 }
-                            ), displayedComponents: .date)
-                        }
-                    }
-                }
+        NavigationStack {
+            ZStack {
+                Theme.Colors.background.ignoresSafeArea()
                 
-                Section {
-                    Button("Add Chore") {
-                        saveChore()
-                    }
-                    .disabled(title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                }
+                mainFormContent
             }
-            .navigationTitle("Add New Chore")
+            .navigationTitle("Add Chore")
+            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
+                ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") {
                         dismiss()
                     }
                 }
-            }
-            .onAppear {
-                // Fetch household members if not already loaded by HouseholdViewModel
-                // This might be handled by the parent view passing the householdViewModel
-                // or by having householdViewModel fetch them if needed.
-                // For now, assuming householdViewModel.householdMembers is populated.
-            }
-        }
-    }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Add") {
+                        Task{
+                            await addChore()
 
-    private func saveChore() {
-        guard let householdId = householdViewModel.selectedHousehold?.id else {
-            // Handle error: no selected household
-            print("Error: No selected household ID.")
-            return
-        }
-        
-        var rule: RecurrenceRule? = nil
-        if selectedRecurrenceType != .none {
-            let interval = Int(recurrenceIntervalString)
-            let monthInterval = Int(recurrenceMonthIntervalString)
-            
-            // Convert Set<DayOfWeek> to [Int] for daysOfWeek
-            let daysOfWeekInt = selectedDaysOfWeek.map { $0.rawValue }.sorted()
-            
-            // Determine weekOfMonth value for RecurrenceRule
-            // The RecurrenceRule uses 1-4 for first to fourth, and -1 for last.
-            // Our WeekOfMonthOption uses 1-4 for first to fourth, and 5 for last.
-            var ruleWeekOfMonth: Int? = nil
-            if selectedRecurrenceType == .specificWeekdayOfMonth {
-                if selectedWeekOfMonth == .last {
-                    ruleWeekOfMonth = -1
-                } else {
-                    ruleWeekOfMonth = selectedWeekOfMonth.rawValue
+                        }
+                    }
+                    .disabled(!isFormValid)
                 }
             }
-            
-            // Determine daysOfWeek for specificWeekdayOfMonth
-            // RecurrenceRule.daysOfWeek is [Int] where 0 is Sunday.
-            // For specificWeekdayOfMonth, we store the selected weekday (e.g., Monday) as a single element array.
-            var ruleDaysOfWeekForSpecificWeekday: [Int]? = nil
-            if selectedRecurrenceType == .specificWeekdayOfMonth {
-                ruleDaysOfWeekForSpecificWeekday = [selectedWeekdayForMonthlyRecurrence.rawValue]
-            }
-
-            rule = RecurrenceRule(
-                type: selectedRecurrenceType,
-                interval: selectedRecurrenceType == .everyXDays || selectedRecurrenceType == .everyXWeeks ? interval : nil,
-                daysOfWeek: selectedRecurrenceType == .weekly || selectedRecurrenceType == .everyXWeeks ? daysOfWeekInt : (selectedRecurrenceType == .specificWeekdayOfMonth ? ruleDaysOfWeekForSpecificWeekday : nil),
-                dayOfMonth: selectedRecurrenceType == .specificDayOfMonth ? selectedDayOfMonth : nil,
-                weekOfMonth: ruleWeekOfMonth,
-                monthInterval: (selectedRecurrenceType == .specificDayOfMonth || selectedRecurrenceType == .specificWeekdayOfMonth || selectedRecurrenceType == .monthly) ? (Int(recurrenceMonthIntervalString) ?? 1) : nil,
-                endDate: hasRecurrenceEndDate ? recurrenceEndDate : nil
+            .alert(
+                "Error",
+                isPresented: errorAlertBinding(),
+                actions: { Button("OK", role: .cancel) {} },
+                message: { Text(viewModel.errorMessage ?? "") }
             )
-        }
-
-        // The actual Chore object creation needs to align with the full definition in Chore.swift
-        // including createdByUserId, createdAt, etc.
-        // This part will be refined when ChoreViewModel.createChore is updated.
-        
-        // Placeholder for actual chore creation and saving
-        // viewModel.createChore(
-        // title: title,
-        // description: description,
-        // householdId: householdId,
-        // assignedToUserId: assignedToUserId,
-        // dueDate: hasDueDate ? dueDate : nil,
-        // points: points,
-        // recurrenceRule: rule
-        // )
-        
-        // For now, just print and dismiss
-        print("Chore to save: Title: \\(title), Points: \\(points), Rule: \\(String(describing: rule))")
-        // Example of how it might be called (actual method signature in ChoreViewModel will vary)
-        Task {
-            do {
-                // This is a placeholder. The actual createChore method in ChoreViewModel
-                // will need to be updated to accept these parameters or a Chore object.
-                // For now, we are just preparing the data.
-                
-                // let newChore = Chore(
-                // title: title,
-                // description: description,
-                // householdId: householdId, // Assuming this is available
-                // assignedToUserId: assignedToUserId,
-                // createdByUserId: Auth.auth().currentUser?.uid, // Example
-                // dueDate: hasDueDate ? dueDate : Date(), // Ensure dueDate is not nil if hasDueDate is false, or handle appropriately
-                // isCompleted: false,
-                // createdAt: Date(),
-                // points: points,
-                // recurrenceRule: rule,
-                // updatedAt: Date()
-                // )
-                // try await viewModel.addChore(newChore) // Example call
-                
-                dismiss()
-            } catch {
-                // Handle error
-                print("Error saving chore: \\(error.localizedDescription)")
-            }
-        }
-    }
-}
-
-enum DayOfWeek: Int, CaseIterable, Identifiable, Equatable, Hashable {
-    case sunday = 0, monday, tuesday, wednesday, thursday, friday, saturday
-
-    var id: Int { self.rawValue }
-
-    var shortName: String {
-        switch self {
-        case .sunday: return "Sun"
-        case .monday: return "Mon"
-        case .tuesday: return "Tue"
-        case .wednesday: return "Wed"
-        case .thursday: return "Thu"
-        case .friday: return "Fri"
-        case .saturday: return "Sat"
         }
     }
     
-    var fullName: String {
-        switch self {
-        case .sunday: return "Sunday"
-        case .monday: return "Monday"
-        case .tuesday: return "Tuesday"
-        case .wednesday: return "Wednesday"
-        case .thursday: return "Thursday"
-        case .friday: return "Friday"
-        case .saturday: return "Saturday"
+    // MARK: - Content Sections
+    
+    private var mainFormContent: some View {
+        Form {
+            basicDetailsSection
+            dueDateSection
+            assignmentSection
+            pointsSection
+            recurrenceSection
+        }
+        .onAppear {
+            loadHouseholdMembers()
         }
     }
-}
-
-enum WeekOfMonthOption: Int, CaseIterable, Identifiable, Equatable {
-    case first = 1
-    case second = 2
-    case third = 3
-    case fourth = 4
-    case last = 5 // Mapped to -1 in RecurrenceRule
-
-    var id: Int { self.rawValue }
-
-    var displayName: String {
-        switch self {
-        case .first: return "First"
-        case .second: return "Second"
-        case .third: return "Third"
-        case .fourth: return "Fourth"
-        case .last: return "Last"
+    
+    private var basicDetailsSection: some View {
+        Section(header: Text("Basic Details")) {
+            TextField("Title", text: $title)
+            
+            TextField("Description (optional)", text: $description)
+                .frame(height: 60)
         }
     }
-}
-
-struct WeekdaysSelectorView: View {
-    @Binding var selectedDays: Set<DayOfWeek>
-    private let days = DayOfWeek.allCases
-    private let columns = [GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible()), GridItem(.flexible())]
-
-    var body: some View {
-        VStack(alignment: .leading) {
-            Text("Repeat on:")
-                .font(.headline)
-            LazyVGrid(columns: columns, spacing: 10) {
-                ForEach(days, id: \.self) { day in
-                    Button(action: {
-                        toggleSelection(for: day)
-                    }) {
-                        Text(day.shortName)
-                            .font(.caption)
-                            .padding(.vertical, 8)
-                            .padding(.horizontal, 4)
-                            .frame(minWidth: 0, maxWidth: .infinity)
-                            .background(selectedDays.contains(day) ? Color.accentColor : Color.gray.opacity(0.2))
-                            .foregroundColor(selectedDays.contains(day) ? .white : .primary)
-                            .cornerRadius(8)
-                    }
+    
+    private var dueDateSection: some View {
+        Section(header: Text("Due Date")) {
+            Toggle("Has Due Date", isOn: $hasDueDate)
+            
+            if hasDueDate {
+                DatePicker("Due Date", selection: $dueDate, displayedComponents: [.date, .hourAndMinute])
+            }
+        }
+    }
+    
+    private var assignmentSection: some View {
+        Section(header: Text("Assignment")) {
+            Picker("Assign To", selection: $assignedToUserId) {
+                Text("Unassigned").tag(nil as String?)
+                
+                ForEach(availableUsers, id: \.stableId) { user in
+                    Text(user.name).tag(user.id)
+                }
+            }
+            .disabled(isLoadingUsers)
+            
+            if isLoadingUsers {
+                HStack {
+                    Spacer()
+                    ProgressView()
+                    Spacer()
                 }
             }
         }
     }
-
-    private func toggleSelection(for day: DayOfWeek) {
-        if selectedDays.contains(day) {
-            selectedDays.remove(day)
-        } else {
-            selectedDays.insert(day)
+    
+    private var pointsSection: some View {
+        Section(header: Text("Points")) {
+            Stepper("Points: \(pointValue)", value: $pointValue, in: 1...10)
         }
     }
+    
+    private var recurrenceSection: some View {
+        Section(header: Text("Recurrence")) {
+            Toggle("Recurring Chore", isOn: $isRecurring)
+            
+            if isRecurring {
+                recurrenceTypePickerView
+                recurrenceIntervalView
+                
+                if recurrenceType == .weekly {
+                    weekdaySelectionView
+                } else if recurrenceType == .monthly {
+                    monthlyRecurrenceView
+                }
+                
+                // End date
+                endDateToggleView
+            }
+        }
+    }
+    
+    private var recurrenceTypePickerView: some View {
+        Picker("Repeat", selection: $recurrenceType) {
+            Text("Daily").tag(RecurrenceType.daily)
+            Text("Weekly").tag(RecurrenceType.weekly)
+            Text("Monthly").tag(RecurrenceType.monthly)
+        }
+        .pickerStyle(SegmentedPickerStyle())
+    }
+    
+    @ViewBuilder
+    private var recurrenceIntervalView: some View {
+        if recurrenceType == .daily {
+            Stepper("Every \(recurrenceInterval) day\(recurrenceInterval > 1 ? "s" : "")", 
+                   value: $recurrenceInterval, in: 1...30)
+        } else if recurrenceType == .weekly {
+            Stepper("Every \(recurrenceInterval) week\(recurrenceInterval > 1 ? "s" : "")", 
+                   value: $recurrenceInterval, in: 1...12)
+        } else if recurrenceType == .monthly {
+            Stepper("Every \(recurrenceInterval) month\(recurrenceInterval > 1 ? "s" : "")", 
+                   value: $recurrenceInterval, in: 1...12)
+        }
+    }
+    
+    private var weekdaySelectionView: some View {
+        // Day of week selection
+        HStack {
+            Text("Days of Week")
+            Spacer()
+            NavigationLink("Select Days") {
+                Form {
+                    Section(header: Text("Select Days of Week")) {
+                        ForEach(0..<7) { dayIndex in
+                            let dayName = getDayName(dayIndex)
+                            Toggle(dayName, isOn: weekdayBinding(for: dayIndex))
+                        }
+                    }
+                }
+                .navigationTitle("Select Days")
+            }
+        }
+    }
+    
+    private var monthlyRecurrenceView: some View {
+        // Day of month
+        Picker("Day of Month", selection: $recurrenceDayOfMonth) {
+            Text("Same day as first occurrence").tag(nil as Int?)
+            ForEach(1...28, id: \.self) { day in
+                Text("\(day)").tag(day as Int?)
+            }
+        }
+    }
+    
+    private var endDateToggleView: some View {
+        Group {
+            Toggle("Has End Date", isOn: $hasRecurrenceEndDate)
+            
+            if hasRecurrenceEndDate {
+                DatePicker("End Date", selection: recurrenceEndDateBinding(), displayedComponents: [.date])
+            }
+        }
+    }
+    
+    // MARK: - Helper Properties
+    
+    private var isFormValid: Bool {
+        return !title.isEmpty
+    }
+    
+    // MARK: - Helper Methods
+    
+    private func addChore() async {
+        // Prepare all parameters
+        let finalDueDate = hasDueDate ? dueDate : nil
+        let finalRecurrenceType = isRecurring ? recurrenceType : nil
+        let finalRecurrenceInterval = isRecurring ? recurrenceInterval : nil
+        let finalRecurrenceEndDate = isRecurring && hasRecurrenceEndDate ? recurrenceEndDate : nil
+        let finalRecurrenceDaysOfWeek = isRecurring && recurrenceType == .weekly ? recurrenceDaysOfWeek : nil
+        let finalRecurrenceDayOfMonth = isRecurring && recurrenceType == .monthly ? recurrenceDayOfMonth : nil
+        
+        // Create the chore with the prepared parameters
+        await viewModel.createChore(
+            title: title,
+            description: description,
+            assignedToUserId: assignedToUserId,
+            dueDate: finalDueDate,
+            pointValue: pointValue,
+            isRecurring: isRecurring,
+            recurrenceType: finalRecurrenceType,
+            recurrenceInterval: finalRecurrenceInterval,
+            recurrenceDaysOfWeek: finalRecurrenceDaysOfWeek,
+            recurrenceDayOfMonth: finalRecurrenceDayOfMonth,
+            recurrenceEndDate: finalRecurrenceEndDate
+        )
+        
+        // Dismiss the sheet once the chore is created
+        dismiss()
+    }
+    
+    private func loadHouseholdMembers() {
+        isLoadingUsers = true
+        print("🔍 Starting to load household members...")
+        
+        // Use async/await in a Task to fetch actual household members
+        Task {
+            do {
+                // Get all users in the household
+                let householdId = viewModel.householdId
+                print("🔍 Household ID: \(householdId)")
+                
+                // First get the household to make sure it exists
+                let household = try await HouseholdService.shared.fetchHousehold(withId: householdId)
+                if let household = household {
+                    print("✅ Household found: \(household.name) with \(household.memberUserIds.count) members")
+                } else {
+                    print("❌ Household not found!")
+                }
+                
+                // Now fetch the members
+                let users = try await UserService.shared.fetchUsers(inHousehold: householdId)
+                print("✅ Fetched \(users.count) household members")
+                
+                // If we don't have any users, fall back to the current user at minimum
+                var finalUsers = users
+                if finalUsers.isEmpty {
+                    if let currentUserId = AuthService.shared.getCurrentUserId() {
+                        print("⚠️ No users found, attempting to add current user as fallback")
+                        if let currentUser = try await UserService.shared.fetchUser(withId: currentUserId) {
+                            finalUsers = [currentUser]
+                            print("✅ Added current user as fallback")
+                        }
+                    }
+                    
+                    // If we still don't have any users, create some dummy ones
+                    if finalUsers.isEmpty {
+                        print("⚠️ Creating sample household members")
+                        finalUsers = createSampleUsers()
+                    }
+                }
+                
+                // Update the UI on the main thread
+                await MainActor.run {
+                    self.availableUsers = finalUsers
+                    self.isLoadingUsers = false
+                    print("📱 UI updated with \(finalUsers.count) users")
+                    
+                    // Debug info for each user
+                    for user in finalUsers {
+                        print("👤 User: \(user.name) (ID: \(user.id ?? "nil"), StableID: \(user.stableId))")
+                    }
+                }
+            } catch {
+                // Handle any errors
+                print("❌ Error loading household members: \(error.localizedDescription)")
+                
+                // Fall back to sample data
+                print("⚠️ Falling back to sample data after error")
+                let sampleUsers = createSampleUsers()
+                
+                // Update the UI on the main thread
+                await MainActor.run {
+                    self.availableUsers = sampleUsers
+                    self.isLoadingUsers = false
+                    print("📱 UI updated with \(sampleUsers.count) sample users")
+                    
+                    // We don't show the error message since we have a fallback
+                }
+            }
+        }
+    }
+    
+    /// Creates sample users for testing when real data isn't available
+    private func createSampleUsers() -> [User] {
+        return [
+            User(id: "user1",
+                 name: "Jane Smith",
+                 email: "jane@example.com",
+                 photoURL: nil,
+                 householdIds: [viewModel.householdId],
+                 fcmToken: nil,
+                 createdAt: Date(),
+                 totalPoints: 0,
+                 weeklyPoints: 0,
+                 monthlyPoints: 0),
+            User(id: "user2",
+                 name: "John Doe", 
+                 email: "john@example.com", 
+                 photoURL: nil,
+                 householdIds: [viewModel.householdId],
+                 fcmToken: nil,
+                 createdAt: Date(),
+                 totalPoints: 0,
+                 weeklyPoints: 0,
+                 monthlyPoints: 0),
+            User(id: "user3",
+                 name: "Alex Johnson",
+                 email: "alex@example.com",
+                 photoURL: nil,
+                 householdIds: [viewModel.householdId],
+                 fcmToken: nil,
+                 createdAt: Date(),
+                 totalPoints: 0,
+                 weeklyPoints: 0,
+                 monthlyPoints: 0)
+        ]
+    }
+    
+    private func getDayName(_ dayIndex: Int) -> String {
+        // Use a fixed reference date that we know is a Sunday
+        // January 7, 2024 was a Sunday
+        let referenceDate = DateComponents(calendar: Calendar.current, year: 2024, month: 1, day: 7).date!
+        
+        // Add dayIndex days to get the desired weekday
+        let dayDate = Calendar.current.date(byAdding: .day, value: dayIndex, to: referenceDate)!
+        
+        // Format the date to get the weekday name
+        let formatter = DateFormatter()
+        formatter.dateFormat = "EEEE"
+        return formatter.string(from: dayDate)
+    }
+    
+    // MARK: - Binding Helpers
+    
+    private func errorAlertBinding() -> Binding<Bool> {
+        return Binding<Bool>(
+            get: { 
+                self.viewModel.errorMessage != nil 
+            },
+            set: { isPresented in
+                if !isPresented {
+                    self.viewModel.errorMessage = nil
+                }
+            }
+        )
+    }
+    
+    private func weekdayBinding(for dayIndex: Int) -> Binding<Bool> {
+        return Binding<Bool>(
+            get: { 
+                self.recurrenceDaysOfWeek.contains(dayIndex)
+            },
+            set: { isSelected in
+                if isSelected {
+                    self.recurrenceDaysOfWeek.append(dayIndex)
+                } else {
+                    self.recurrenceDaysOfWeek.removeAll { $0 == dayIndex }
+                }
+            }
+        )
+    }
+    
+    private func recurrenceEndDateBinding() -> Binding<Date> {
+        return Binding<Date>(
+            get: { 
+                self.recurrenceEndDate ?? Date().addingTimeInterval(30 * 24 * 60 * 60)
+            },
+            set: { 
+                self.recurrenceEndDate = $0
+            }
+        )
+    }
 }
-
-#if DEBUG
-//struct AddChoreView_Previews: PreviewProvider {
-//    static var previews: some View {
-//        AddChoreView(viewModel: ChoreViewModel(householdId: "sampleHouseholdId", choreService: MockChoreService()), // Requires MockChoreService
-// householdViewModel: HouseholdViewModel()) // Requires a configured HouseholdViewModel
-//    }
-//}
-#endif

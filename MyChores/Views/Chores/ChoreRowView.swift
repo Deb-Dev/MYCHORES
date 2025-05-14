@@ -101,14 +101,13 @@ struct ChoreRowView: View {
                         Image(systemName: "star.fill")
                             .font(.system(size: 12))
                         
-                        Text("\(chore.points) pts") // MODIFIED: Use chore.points
+                        Text("\(chore.pointValue) pts")
                             .font(Theme.Typography.captionFontSystem)
                     }
                     .foregroundColor(Theme.Colors.accent)
                     
                     // Recurring indicator
-                    // MODIFIED: Use chore.recurrenceRule
-                    if chore.recurrenceRule != nil && chore.recurrenceRule?.type != .none {
+                    if chore.isRecurring {
                         HStack(spacing: 4) {
                             Image(systemName: "arrow.clockwise")
                                 .font(.system(size: 12))
@@ -157,27 +156,17 @@ struct ChoreRowView: View {
     }
     
     private var recurrenceText: String {
-        // MODIFIED: Use chore.recurrenceRule
-        guard let rule = chore.recurrenceRule, rule.type != .none else {
-            return "Recurring" // Default or consider if it should be empty
+        guard let type = chore.recurrenceType, let interval = chore.recurrenceInterval else {
+            return "Recurring"
         }
         
-        let interval = rule.interval ?? 1 // Default to 1 if nil for simplicity in row view
-
-        switch rule.type {
-        case .daily, .everyXDays:
+        switch type {
+        case .daily:
             return interval == 1 ? "Daily" : "Every \(interval) days"
-        case .weekly, .everyXWeeks:
-            // For a more detailed row, you could add "on Mon, Wed" etc.
+        case .weekly:
             return interval == 1 ? "Weekly" : "Every \(interval) weeks"
-        case .monthly, .specificDayOfMonth, .specificWeekdayOfMonth:
-            // Monthly recurrences can be complex; keep it simple for the row view
-            // Or use a more generic term like "Monthly"
-            // For specific day/weekday, you might want more detail if space allows
-            let monthInterval = rule.monthInterval ?? 1
-            return monthInterval == 1 ? "Monthly" : "Every \(monthInterval) months"
-        case .none:
-            return "" // Should not happen due to guard
+        case .monthly:
+            return interval == 1 ? "Monthly" : "Every \(interval) months"
         }
     }
     

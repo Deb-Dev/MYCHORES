@@ -7,7 +7,6 @@
 
 import SwiftUI
 import Combine
-import FirebaseFirestore // Added import
 
 /// Main view for managing household chores
 struct ChoresView: View {
@@ -15,7 +14,6 @@ struct ChoresView: View {
     
     @StateObject private var toastManager = ToastManager()
     @StateObject private var viewModel: ChoreViewModel
-    @StateObject private var householdViewModel: HouseholdViewModel // Added
     @State private var showingAddChore = false
     @State private var showingChoreDetail: Chore?
     @State private var isRefreshing = false
@@ -25,7 +23,6 @@ struct ChoresView: View {
     init(householdId: String) {
         // Use _StateObject to initialize the StateObject property
         self._viewModel = StateObject(wrappedValue: ChoreViewModel(householdId: householdId))
-        self._householdViewModel = StateObject(wrappedValue: HouseholdViewModel()) // Added
     }
     
     // MARK: - Body
@@ -82,8 +79,7 @@ struct ChoresView: View {
             // Refresh chores when sheet is dismissed
             viewModel.loadChores()
         }) {
-            // MODIFIED: Pass both view models
-            AddChoreView(viewModel: viewModel, householdViewModel: householdViewModel)
+            AddChoreView(householdId: viewModel.householdId)
         }
         .sheet(item: $showingChoreDetail) { chore in
             ChoreDetailView(
