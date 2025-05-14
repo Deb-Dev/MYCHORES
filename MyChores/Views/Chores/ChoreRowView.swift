@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import FirebaseFirestore
 
 /// Row view for a single chore in the list
 struct ChoreRowView: View {
@@ -20,37 +21,37 @@ struct ChoreRowView: View {
     var body: some View {
         ZStack {
             // Card background
-            RoundedRectangle(cornerRadius: Theme.Dimensions.cornerRadiusMedium)
+            RoundedRectangle(cornerRadius: Theme.Dimensions.cornerRadiusSmall)
                 .fill(Theme.Colors.cardBackground)
                 .shadow(
                     color: colorScheme == .dark 
-                        ? Color.black.opacity(0.3) 
-                        : Color.black.opacity(0.1),
-                    radius: 4, 
+                        ? Color.black.opacity(0.2) 
+                        : Color.black.opacity(0.05),
+                    radius: 2, 
                     x: 0, 
-                    y: 2
+                    y: 1
                 )
             
             // Content
             VStack(spacing: 0) {
-                // Header with title and points
-                HStack {
+                // Title row with status circle
+                HStack(alignment: .center, spacing: 12) {
                     // Status circle
                     Circle()
                         .fill(statusColor)
-                        .frame(width: 32, height: 32)
+                        .frame(width: 24, height: 24)
                         .overlay {
                             if chore.isCompleted {
                                 Image(systemName: "checkmark")
-                                    .font(.system(size: 16, weight: .bold))
+                                    .font(.system(size: 12, weight: .bold))
                                     .foregroundColor(.white)
                             }
                         }
                         .animation(.easeInOut, value: chore.isCompleted)
                     
-                    // Title and points
+                    // Title
                     Text(chore.title)
-                        .font(Theme.Typography.bodyFontSystem.weight(.semibold))
+                        .font(Theme.Typography.bodyFontSystem.weight(.medium))
                         .foregroundColor(Theme.Colors.text)
                         .lineLimit(1)
                         .strikethrough(chore.isCompleted)
@@ -61,27 +62,28 @@ struct ChoreRowView: View {
                     HStack(spacing: 4) {
                         Image(systemName: "star.fill")
                             .foregroundColor(Theme.Colors.accent)
-                            .font(.system(size: 16, weight: .medium))
+                            .font(.system(size: 14))
                         
                         Text("\(chore.pointValue) pts")
-                            .font(Theme.Typography.bodyFontSystem.weight(.semibold))
+                            .font(Theme.Typography.captionFontSystem.weight(.medium))
                             .foregroundColor(Theme.Colors.accent)
                     }
                 }
-                .padding(.horizontal, Theme.Dimensions.paddingMedium)
-                .padding(.top, Theme.Dimensions.paddingMedium)
-                .padding(.bottom, 8)
+                .padding(.horizontal, 16)
+                .padding(.top, 12)
+                .padding(.bottom, 4)
                 
                 // Assignment information
                 if let assignedToUserId = chore.assignedToUserId {
-                    HStack(spacing: 8) {
+                    HStack(spacing: 4) {
                         Text("Assigned to: \(getUserName(assignedToUserId))")
                             .font(Theme.Typography.captionFontSystem)
                             .foregroundColor(Theme.Colors.textSecondary)
                         Spacer()
                     }
-                    .padding(.horizontal, Theme.Dimensions.paddingMedium)
-                    .padding(.bottom, 8)
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 4)
+                    .padding(.leading, 36) // Align with title text
                 }
                 
                 // Schedule information
@@ -118,8 +120,8 @@ struct ChoreRowView: View {
                 .padding(.bottom, Theme.Dimensions.paddingMedium)
             }
         }
-        .padding(.vertical, 4)
-        .padding(.horizontal, Theme.Dimensions.paddingSmall)
+        .padding(.vertical, 2)
+        .padding(.horizontal, 4) // Thinner side margins
     }
     
     // MARK: - Helper Properties

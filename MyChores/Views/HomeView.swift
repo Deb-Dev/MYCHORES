@@ -101,7 +101,7 @@ struct HomeView: View {
         NavigationStack {
             Group {
                 if let householdId = selectedHouseholdId, !householdId.isEmpty {
-                    LeaderboardView(householdId: householdId)
+                    LeaderboardViewV2(householdId: householdId)
                 } else {
                     Text("Select a household")
                         .font(Theme.Typography.subheadingFontSystem)

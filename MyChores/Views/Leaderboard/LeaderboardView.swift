@@ -259,59 +259,59 @@ struct LeaderboardView: View {
 }
 
 /// User avatar view
-struct UserAvatarView: View {
-    let user: User
-    let size: CGFloat
-    
-    var body: some View {
-        Group {
-            if let photoURL = user.photoURL, !photoURL.isEmpty {
-                // In a real app, we would load the image from the URL
-                // For now, just show a placeholder with the user's initials
-                Circle()
-                    .fill(Theme.Colors.secondary)
-                    .overlay(
-                        Text(getInitials())
-                            .font(.system(size: size * 0.4, weight: .bold))
-                            .foregroundColor(.white)
-                    )
-            } else {
-                Circle()
-                    .fill(Theme.Colors.secondary)
-                    .overlay(
-                        Text(getInitials())
-                            .font(.system(size: size * 0.4, weight: .bold))
-                            .foregroundColor(.white)
-                    )
-            }
-        }
-        .frame(width: size, height: size)
-    }
-    
-    private func getInitials() -> String {
-        let components = user.name.components(separatedBy: " ")
-        if components.count > 1, let first = components.first?.first, let last = components.last?.first {
-            return "\(first)\(last)"
-        } else if let first = user.name.first {
-            return String(first)
-        } else {
-            return "?"
-        }
-    }
-}
+//struct UserAvatarView: View {
+//    let user: User
+//    let size: CGFloat
+//    
+//    var body: some View {
+//        Group {
+//            if let photoURL = user.photoURL, !photoURL.isEmpty {
+//                // In a real app, we would load the image from the URL
+//                // For now, just show a placeholder with the user's initials
+//                Circle()
+//                    .fill(Theme.Colors.secondary)
+//                    .overlay(
+//                        Text(getInitials())
+//                            .font(.system(size: size * 0.4, weight: .bold))
+//                            .foregroundColor(.white)
+//                    )
+//            } else {
+//                Circle()
+//                    .fill(Theme.Colors.secondary)
+//                    .overlay(
+//                        Text(getInitials())
+//                            .font(.system(size: size * 0.4, weight: .bold))
+//                            .foregroundColor(.white)
+//                    )
+//            }
+//        }
+//        .frame(width: size, height: size)
+//    }
+//    
+//    private func getInitials() -> String {
+//        let components = user.name.components(separatedBy: " ")
+//        if components.count > 1, let first = components.first?.first, let last = components.last?.first {
+//            return "\(first)\(last)"
+//        } else if let first = user.name.first {
+//            return String(first)
+//        } else {
+//            return "?"
+//        }
+//    }
+//}
 
 // MARK: - Extensions
 
-extension User {
-    func getPointsForCurrentPeriod(in period: LeaderboardViewModel.LeaderboardPeriod) -> Int {
-        switch period {
-        case .weekly:
-            return weeklyPoints
-        case .monthly:
-            return monthlyPoints
-        }
-    }
-}
+//extension User {
+//    func getPointsForCurrentPeriod(in period: LeaderboardViewModel.LeaderboardPeriod) -> Int {
+//        switch period {
+//        case .weekly:
+//            return weeklyPoints
+//        case .monthly:
+//            return monthlyPoints
+//        }
+//    }
+//}
 
 #Preview {
     LeaderboardView(householdId: "sample_household_id")
