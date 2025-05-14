@@ -1,215 +1,316 @@
-classDiagram
-    direction LR
+@startuml
+'skinparam linetype ortho
 
-    class MyChoresApp {
-        +AppDelegate delegate
-        +AuthViewModel authViewModel
-    }
+package "Models" {
+  class User {
+    +id: String?
+    +name: String
+    +email: String
+    +photoURL: String?
+    +householdIds: [String]
+    +fcmToken: String?
+    +createdAt: Date
+    +totalPoints: Int
+    +weeklyPoints: Int
+    +monthlyPoints: Int
+    +earnedBadges: [String]
+    +privacySettings: UserPrivacySettings
+  }
 
-    class AppDelegate {
-        +FirebaseApp firebaseApp
-        +Messaging messaging
-        +UNUserNotificationCenter notificationCenter
-        +application(didFinishLaunchingWithOptions)
-        +messaging(didReceiveRegistrationToken)
-        +userNotificationCenter(didReceive)
-    }
+  class Chore {
+    +id: String?
+    +title: String
+    +description: String
+    +householdId: String
+    +assignedToUserId: String?
+    +createdByUserId: String?
+    +dueDate: Date?
+    +isCompleted: Bool
+    +createdAt: Date
+    +completedAt: Date?
+    +completedByUserId: String?
+    +pointValue: Int
+    +isRecurring: Bool
+    +recurrenceType: RecurrenceType?
+    +nextOccurrenceDate: Date?
+  }
 
-    class AuthService {
-        +User? currentUser
-        +String errorMessage
-        +signIn(email, password)
-        +signUp(email, password, name)
-        +signOut()
-        +refreshCurrentUser()
-    }
+  enum RecurrenceType {
+    daily
+    weekly
+    monthly
+  }
 
-    class ChoreService {
-        +addChore(Chore)
-        +updateChore(Chore)
-        +deleteChore(String)
-        +completeChore(String)
-        +fetchChores(String householdId)
-    }
+  class Household {
+    +id: String?
+    +name: String
+    +ownerUserId: String
+    +memberUserIds: [String]
+    +inviteCode: String
+    +createdAt: Date
+  }
 
-    class HouseholdService {
-        +createHousehold(String name)
-        +joinHousehold(String inviteCode)
-        +leaveHousehold(String householdId)
-        +fetchHousehold(String householdId)
-        +fetchHouseholdMembers(String householdId)
-    }
+  class Badge {
+    +id: String?
+    +badgeKey: String
+    +name: String
+    +description: String
+    +iconName: String
+    +colorName: String
+    +requiredTaskCount: Int?
+  }
+}
 
-    class UserService {
-        +createUser(String id, String name, String email)
-        +updateUser(User)
-        +fetchCurrentUser()
-        +fetchUser(String userId)
-    }
+package "Services" {
+  interface AuthServiceProtocol {
+    +currentUser: User?
+    +isAuthenticated: Bool
+    +authState: AuthState
+    +errorMessage: String?
+    +signIn(email: String, password: String)
+    +signUp(name: String, email: String, password: String)
+    +signOut()
+    +resetPassword(for email: String)
+    +refreshCurrentUser()
+    +getCurrentUserId() -> String?
+    +ensureCurrentProfileExists()
+    +updateUserPrivacySettings(...)
+    +updateUserName(newName: String)
+  }
 
-    class AuthViewModel {
-        +AuthState authState
-        +User? currentUser
-        +String errorMessage
-        +signIn(email, password)
-        +signUp(email, password, name)
-        +signOut()
-        +refreshCurrentUser()
-    }
+  class AuthService implements AuthServiceProtocol {
+    +shared: AuthService
+    -userService: UserServiceProtocol
+    +currentUser: User?
+    +isAuthenticated: Bool
+    +authState: AuthState
+    +errorMessage: String?
+  }
+  AuthService ..> UserServiceProtocol : uses
 
-    class HouseholdViewModel {
-        +Household? selectedHousehold
-        +User[] householdMembers
-        +createHousehold(String name)
-        +joinHousehold(String inviteCode)
-        +leaveHousehold()
-        +fetchHouseholdDetails()
-    }
+  interface UserServiceProtocol {
+    +createUser(id: String, name: String, email: String)
+    +fetchUser(withId id: String)
+    +updateUser(_ user: User)
+    +deleteUser(withId id: String)
+  }
+  class UserService implements UserServiceProtocol {
+    +shared: UserService
+  }
 
-    class User {
-        +String? id
-        +String name
-        +String email
-        +String? photoURL
-        +String[] householdIds
-        +String? fcmToken
-        +Date createdAt
-        +Int totalPoints
-        +Int weeklyPoints
-        +Int monthlyPoints
-        +Date? currentWeekStartDate
-        +Date? currentMonthStartDate
-        +String[] earnedBadges
-        +UserPrivacySettings privacySettings
-        +stableId() String
-        +forceSetId(String)
-    }
+  interface ChoreServiceProtocol {
+    +createChore(...)
+    +fetchChore(withId id: String)
+    +fetchChores(forHouseholdId householdId: String, ...)
+    +fetchChores(forUserId userId: String, ...)
+  }
+  class ChoreService implements ChoreServiceProtocol {
+     +shared: ChoreService
+  }
 
-    class Chore {
-        +String? id
-        +String title
-        +String description
-        +String householdId
-        +String? assignedToUserId
-        +Date? dueDate
-        +Bool isCompleted
-        +Date createdAt
-        +Date? completedAt
-        +String? completedByUserId
-        +Int pointValue
-        +Bool isRecurring
-        +isOverdue() Bool
-    }
+  interface HouseholdServiceProtocol {
+    +createHousehold(name: String, ownerUserId: String)
+    +fetchHousehold(withId id: String)
+    +fetchHouseholds(forUserId userId: String)
+    +findHousehold(byInviteCode inviteCode: String)
+  }
+  class HouseholdService implements HouseholdServiceProtocol {
+     +shared: HouseholdService
+  }
 
-    class Household {
-        +String? id
-        +String name
-        +String inviteCode
-        +String createdByUserId
-        +Date createdAt
-    }
+   class NotificationService {
+    +requestNotificationPermission()
+    +scheduleChoreReminder(...)
+    +cancelChoreReminder(...)
+  }
+}
 
-    class Badge {
-        +String id
-        +String name
-        +String description
-        +String imageURL
-        +Int requiredPoints
-    }
+package "ViewModels" {
+  class AuthViewModel {
+    +authState: AuthState
+    +currentUser: User?
+    +isLoading: Bool
+    +errorMessage: String?
+    -authService: AuthServiceProtocol
+    +signIn(...)
+    +signUp(...)
+    +signOut()
+    +resetPassword(...)
+  }
+  AuthViewModel --> AuthServiceProtocol : uses
 
-    class UserPrivacySettings {
-        +Bool showProfile
-        +Bool showAchievements
-        +Bool shareActivity
-    }
+  class ChoreViewModel {
+    +chores: [Chore]
+    +selectedChore: Chore?
+    +isLoading: Bool
+    -choreService: ChoreServiceProtocol
+    -householdId: String
+    +fetchChores()
+    +addChore(...)
+    +updateChore(...)
+    +deleteChore(...)
+    +completeChore(...)
+  }
+  ChoreViewModel --> ChoreServiceProtocol : uses
+  ChoreViewModel ..> Chore : manages
 
-    class MainView {
-        +AuthViewModel authViewModel
-    }
+  class HouseholdViewModel {
+    +households: [Household]
+    +selectedHousehold: Household?
+    +householdMembers: [User]
+    +currentUser: User?
+    -householdService: HouseholdServiceProtocol
+    -userService: UserServiceProtocol
+    +fetchHouseholds()
+    +fetchHouseholdDetails()
+    +createHousehold(...)
+    +joinHousehold(...)
+    +leaveHousehold(...)
+    +inviteMember(...)
+  }
+  HouseholdViewModel --> HouseholdServiceProtocol : uses
+  HouseholdViewModel --> UserServiceProtocol : uses
+  HouseholdViewModel ..> Household : manages
+  HouseholdViewModel ..> User : manages
 
-    class HomeView {
-        +AuthViewModel authViewModel
-        +String? selectedHouseholdId
-        +Int selectedTab
-    }
+  class LeaderboardViewModel {
+    +weeklyLeaderboard: [User]
+    +monthlyLeaderboard: [User]
+    +isLoading: Bool
+    -userService: UserServiceProtocol
+    -householdId: String
+    +fetchLeaderboard()
+  }
+  LeaderboardViewModel --> UserServiceProtocol : uses
+  LeaderboardViewModel ..> User : displays
 
-    class AddChoreView {
-        +String householdId
-        +User[] availableUsers
-        +ChoreService choreService
-        +addChore()
-    }
+  class AchievementsViewModel {
+    +allBadges: [Badge]
+    +earnedBadges: [Badge]
+    +unearnedBadges: [Badge]
+    -userService: UserServiceProtocol
+    -userId: String
+    +fetchAchievements()
+  }
+  AchievementsViewModel --> UserServiceProtocol : uses
+  AchievementsViewModel ..> Badge : manages
+}
 
-    class ChoreDetailView {
-        +Chore chore
-        +ChoreService choreService
-        +onComplete()
-        +onDelete()
-    }
+package "Views" {
+  class MyChoresApp {
+    +delegate: AppDelegate
+    +authViewModel: AuthViewModel
+  }
+  MyChoresApp --> AuthViewModel
 
-    class HouseholdView {
-        +HouseholdViewModel viewModel
-        +String? selectedHouseholdId
-    }
+  class AppDelegate {
+    +application(...)
+    +messaging(...)
+  }
 
-    class ProfileView {
-        +AuthViewModel authViewModel
-    }
+  class MainView {
+    +authViewModel: AuthViewModel
+  }
+  MainView --> AuthViewModel : observes
 
-    class EmptyStateView {
-        +String icon
-        +String title
-        +String message
-        +Bool showActionButton
-        +String actionButtonText
-        +Function onActionTapped
-    }
+  class HomeView {
+    +authViewModel: AuthViewModel
+    +householdViewModel: HouseholdViewModel
+    +choreViewModel: ChoreViewModel
+  }
+  HomeView ..> AuthViewModel
+  HomeView ..> HouseholdViewModel
+  HomeView ..> ChoreViewModel
 
-    class Theme {
-        +Colors colors
-        +Typography typography
-        +Dimensions dimensions
-    }
+  class ChoresView {
+    +viewModel: ChoreViewModel
+    +showingAddChore: Bool
+    +showingChoreDetail: Chore?
+  }
+  ChoresView --> ChoreViewModel : uses
 
-    MyChoresApp ..> AppDelegate : uses
-    MyChoresApp *-- AuthViewModel : owns
+  class ChoreListView {
+    +viewModel: ChoreViewModel
+  }
+  ChoreListView --> ChoreViewModel : uses
 
-    AuthViewModel ..> AuthService : uses
-    HouseholdViewModel ..> HouseholdService : uses
-    HouseholdViewModel ..> UserService : uses
+  class ChoreDetailView {
+    +chore: Chore
+  }
+  ChoreDetailView ..> Chore
 
-    MainView ..> AuthViewModel : uses
-    HomeView ..> AuthViewModel : uses
-    HomeView ..> HouseholdView : navigates to
-    HomeView ..> ProfileView : navigates to
-    HomeView ..> AddChoreView : navigates to
-    HomeView ..> ChoreDetailView : navigates to
+  class AddChoreView {
+    +viewModel: ChoreViewModel
+  }
+  AddChoreView --> ChoreViewModel : uses
 
+  class HouseholdView {
+    +viewModel: HouseholdViewModel
+  }
+  HouseholdView --> HouseholdViewModel : uses
 
-    HouseholdView ..> HouseholdViewModel : uses
-    AddChoreView ..> ChoreService : uses
-    AddChoreView ..> UserService : uses
-    ChoreDetailView ..> ChoreService : uses
-    ChoreDetailView ..> UserService : uses
+  class LeaderboardView {
+    +viewModel: LeaderboardViewModel
+  }
+  LeaderboardView --> LeaderboardViewModel : uses
 
+  class AchievementsView {
+    +viewModel: AchievementsViewModel
+  }
+  AchievementsView --> AchievementsViewModel : uses
 
-    AuthService ..> User : manages
-    ChoreService ..> Chore : manages
-    HouseholdService ..> Household : manages
-    UserService ..> User : manages
+  package "Components" {
+    class EmptyStateView {}
+    class CardView {}
+    class ErrorAlertView {}
+    class ShimmeringView {}
+    class ToastManager {}
+  }
+}
 
-    User "1" *-- "1" UserPrivacySettings : contains
-    User "1" -- "0..*" Household : member of >
-    User "1" -- "0..*" Chore : assigned to >
-    User "1" -- "0..*" Badge : earns >
+' Relationships between major components
+MyChoresApp ..> MainView : displays
+MainView ..> HomeView : navigates (when authenticated)
+MainView ..> AuthView : navigates (when unauthenticated)
 
-    Household "1" -- "0..*" Chore : contains >
-    Household "1" -- "0..*" User : has members >
+HomeView ..> ChoresView : contains
+HomeView ..> HouseholdView : contains
+HomeView ..> LeaderboardView : contains
+HomeView ..> AchievementsView : contains
 
-    HomeView ..> EmptyStateView : uses
-    ChoreDetailView ..> Theme : uses
-    AddChoreView ..> Theme : uses
-    HomeView ..> Theme : uses
-    HouseholdView ..> Theme : uses
-    ProfileView ..> Theme : uses
-    EmptyStateView ..> Theme : uses
+User "1" -- "*" Chore : can be assigned to / created by
+Household "1" -- "*" Chore : contains
+Household "1" -- "*" User : has members
+User "1" -- "*" Badge : earns
+
+' Service dependencies
+AuthService ..> User : manages
+UserService ..> User : CRUD
+ChoreService ..> Chore : CRUD
+HouseholdService ..> Household : CRUD
+NotificationService ..> User : sends to
+NotificationService ..> Chore : reminds for
+
+' ViewModel to Model relationships
+AuthViewModel ..> User
+ChoreViewModel ..> Chore
+HouseholdViewModel ..> Household
+HouseholdViewModel ..> User
+LeaderboardViewModel ..> User
+AchievementsViewModel ..> Badge
+AchievementsViewModel ..> User
+
+' View to ViewModel relationships
+ChoresView ..> ChoreViewModel
+ChoreListView ..> ChoreViewModel
+AddChoreView ..> ChoreViewModel
+HouseholdView ..> HouseholdViewModel
+LeaderboardView ..> LeaderboardViewModel
+AchievementsView ..> AchievementsViewModel
+
+' General UI components might be used by many views
+ChoresView ..> EmptyStateView : uses
+ChoresView ..> CardView : uses
+LeaderboardView ..> EmptyStateView : uses
+
+@enduml
