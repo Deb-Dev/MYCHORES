@@ -48,7 +48,15 @@ class AppDelegate: NSObject, UIApplicationDelegate, MessagingDelegate, UNUserNot
         
         // Store this token to Firestore for the current user
         if let token = fcmToken {
-            UserService.shared.updateFCMToken(token)
+            Task{
+                do{
+                    try await UserService.shared.updateFCMToken(token)
+
+                } catch {
+                    print("UserService.shared.updateFCMToken(token) error: \(error)")
+                }
+
+            }
         }
     }
     

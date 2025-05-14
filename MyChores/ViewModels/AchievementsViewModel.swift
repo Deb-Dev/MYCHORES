@@ -42,16 +42,18 @@ class AchievementsViewModel: ObservableObject {
     private var userId: String
     
     /// User service instance
-    private let userService = UserService.shared
+    private let userService: UserServiceProtocol
     
     /// Chore service instance
-    private let choreService = ChoreService.shared
+    private let choreService: ChoreServiceProtocol
     
     // MARK: - Initialization
     
-    init(userId: String? = nil) {
+    init(userId: String? = nil, userService: UserServiceProtocol = UserService.shared, choreService: ChoreServiceProtocol = ChoreService.shared, authService: any AuthServiceProtocol = AuthService.shared) {
         // Use provided ID or current authenticated user
-        self.userId = userId ?? AuthService.shared.getCurrentUserId() ?? ""
+        self.userId = userId ?? authService.getCurrentUserId() ?? ""
+        self.userService = userService
+        self.choreService = choreService
         loadBadges()
     }
     
@@ -77,33 +79,27 @@ class AchievementsViewModel: ObservableObject {
                 if let user = user {
                     print("✅ User found: \(user.name)")
                     
-                    // Get earned badges - handle potential nil earnedBadges array
-                    let earnedBadgeKeys = user.earnedBadges
-                    print("📋 User has \(earnedBadgeKeys.count) earned badge keys")
-                    
-                    // Map badge keys to actual Badge objects
-                    let earned = earnedBadgeKeys.compactMap { badgeKey in
-                        Badge.getBadge(byKey: badgeKey)
-                    }
-                    print("🎖️ Mapped to \(earned.count) Badge objects")
-                    
-                    // Get unearned badges
-                    let unearned = Badge.predefinedBadges.filter { badge in
-                        !earnedBadgeKeys.contains(badge.badgeKey)
-                    }
-                    
-                    // Try to fetch completed tasks, but don't fail if this errors
+                    // Determine completed tasks count
                     var completedCount = 0
                     do {
-                        let completedChores = try await ChoreService.shared.fetchChores(forUserId: userId, includeCompleted: true)
+                        let completedChores = try await choreService.fetchChores(forUserId: userId, includeCompleted: true)
                         completedCount = completedChores.filter { $0.isCompleted }.count
                         print("✅ Fetched \(completedChores.count) chores, \(completedCount) completed")
                     } catch {
                         print("⚠️ Error fetching chores: \(error.localizedDescription)")
                         // Continue anyway, we can still show badges
                     }
-                    
-                    // Calculate total points
+                    // Derive earned/unearned badges based on completed chores
+                    let earned = Badge.predefinedBadges.filter { badge in
+                        guard let req = badge.requiredTaskCount else { return false }
+                        return completedCount >= req
+                    }
+                    let unearned = Badge.predefinedBadges.filter { badge in
+                        guard let req = badge.requiredTaskCount else { return true }
+                        return completedCount < req
+                    }
+                    print("🎖️ Derived \(earned.count) earned badges from \(completedCount) completed tasks")
+                    // Use user's stored total points
                     let points = user.totalPoints
                     
                     await MainActor.run {

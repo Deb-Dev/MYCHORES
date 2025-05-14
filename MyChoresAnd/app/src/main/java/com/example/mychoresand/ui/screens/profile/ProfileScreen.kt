@@ -61,6 +61,8 @@ import com.example.mychoresand.models.Household
 import com.example.mychoresand.ui.components.PrimaryButton
 import java.text.SimpleDateFormat
 import java.util.Locale
+import androidx.compose.material.icons.filled.CalendarToday
+import androidx.compose.material.icons.filled.CalendarMonth
 
 @Composable
 fun ProfileScreen(
@@ -188,12 +190,11 @@ fun ProfileScreen(
                             color = MaterialTheme.colorScheme.onSurface,
                             modifier = Modifier.padding(bottom = 16.dp)
                         )
-                        
+                        // Row 1: Total & Weekly
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            // Total Points
                             StatisticItem(
                                 icon = Icons.Default.Star,
                                 iconBackground = MaterialTheme.colorScheme.primaryContainer,
@@ -201,8 +202,27 @@ fun ProfileScreen(
                                 label = "Total Points",
                                 modifier = Modifier.weight(1f)
                             )
-                            
-                            // Badges Earned
+                            StatisticItem(
+                                icon = Icons.Default.CalendarToday,
+                                iconBackground = MaterialTheme.colorScheme.secondaryContainer,
+                                value = user.weeklyPoints.toString(),
+                                label = "Weekly Points",
+                                modifier = Modifier.weight(1f)
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(16.dp))
+                        // Row 2: Monthly & Badges
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            StatisticItem(
+                                icon = Icons.Default.CalendarMonth,
+                                iconBackground = MaterialTheme.colorScheme.primaryContainer,
+                                value = user.monthlyPoints.toString(),
+                                label = "Monthly Points",
+                                modifier = Modifier.weight(1f)
+                            )
                             StatisticItem(
                                 icon = Icons.Default.EmojiEvents,
                                 iconBackground = MaterialTheme.colorScheme.tertiaryContainer,
@@ -211,14 +231,12 @@ fun ProfileScreen(
                                 modifier = Modifier.weight(1f)
                             )
                         }
-                        
                         Spacer(modifier = Modifier.height(16.dp))
-                        
+                        // Row 3: Households & Member Since
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            // Households Count
                             StatisticItem(
                                 icon = Icons.Default.Home,
                                 iconBackground = MaterialTheme.colorScheme.secondaryContainer,
@@ -226,8 +244,6 @@ fun ProfileScreen(
                                 label = "Households",
                                 modifier = Modifier.weight(1f)
                             )
-                            
-                            // Member Since
                             val memberSince = user.createdAt.let {
                                 val formatter = SimpleDateFormat("MMM yyyy", Locale.getDefault())
                                 formatter.format(it)

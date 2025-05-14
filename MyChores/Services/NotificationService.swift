@@ -10,8 +10,22 @@ import FirebaseFirestore
 import FirebaseAuth
 import FirebaseFunctions
 
+// MARK: - NotificationServiceProtocol
+protocol NotificationServiceProtocol {
+    func requestNotificationPermission()
+    func requestAuthorization()
+    func scheduleChoreReminder(choreId: String, title: String, forUserId: String, dueDate: Date)
+    func cancelChoreReminder(choreId: String)
+    func sendBadgeEarnedNotification(toUserId userId: String, badgeKey: String)
+    func updateNotificationSettings(reminderLeadTime: Int)
+}
+
 /// Service for managing push notifications and reminders
-class NotificationService {
+class NotificationService: NotificationServiceProtocol {
+    func updateNotificationSettings(reminderLeadTime: Int) {
+        
+    }
+    
     // MARK: - Shared Instance
     
     /// Shared instance for singleton access

@@ -41,10 +41,14 @@ class ChoreViewModel: ObservableObject {
     let householdId: String
     
     /// Chore service instance
-    private let choreService = ChoreService.shared
+    private let choreService: ChoreServiceProtocol
     
     /// User service instance
-    private let userService = UserService.shared
+    private let userService: UserServiceProtocol
+    
+    /// Auth service instance
+    let authService: any AuthServiceProtocol
+
     
     // MARK: - Filter Modes
     
@@ -63,7 +67,7 @@ class ChoreViewModel: ObservableObject {
     
     /// Filtered chores based on current filter mode
     var filteredChores: [Chore] {
-        let currentUserId = AuthService.shared.getCurrentUserId() ?? ""
+        let currentUserId = authService.getCurrentUserId() ?? ""
         
         switch filterMode {
         case .all:
@@ -85,60 +89,63 @@ class ChoreViewModel: ObservableObject {
     
     // MARK: - Initialization
     
-    init(householdId: String, choreId: String? = nil) {
+    init(householdId: String, choreId: String? = nil, authService: any AuthServiceProtocol = AuthService.shared, choreService: ChoreServiceProtocol = ChoreService.shared, userService: UserServiceProtocol = UserService.shared) {
         self.householdId = householdId
-        loadChores()
-        
-        if let choreId = choreId {
-            loadChore(id: choreId)
+        self.authService = authService
+        self.choreService = choreService
+        self.userService = userService
+        Task{
+            await loadChores()
+            
+            if let choreId = choreId {
+                await loadChore(id: choreId)
+            }
         }
+        
     }
     
     // MARK: - Chore Methods
     
     /// Load all chores for the current household
+    @MainActor
     func loadChores() {
         isLoading = true
         errorMessage = nil
         
         Task {
             do {
-                let fetchedChores = try await choreService.fetchChores(forHouseholdId: householdId)
+                let fetchedChores = try await choreService.fetchChores(forHouseholdId: householdId, includeCompleted: true)
                 
-                DispatchQueue.main.async {
-                    self.isLoading = false
-                    self.chores = fetchedChores
-                    
-                    // Note: We keep the debug print but don't show error to user for empty state
-                    // as this is a normal condition, especially for new users
-                    if fetchedChores.isEmpty {
-                        print("No chores found for household: \(self.householdId)")
-                    }
+                self.isLoading = false
+                self.chores = fetchedChores
+                
+                // Note: We keep the debug print but don't show error to user for empty state
+                // as this is a normal condition, especially for new users
+                if fetchedChores.isEmpty {
+                    print("No chores found for household: \\(self.householdId)")
                 }
             } catch {
-                DispatchQueue.main.async {
-                    self.isLoading = false
-                    
-                    // Handle specific error types more gracefully
-                    if let nsError = error as NSError? {
-                        // Network connectivity issues
-                        if nsError.domain == NSURLErrorDomain {
-                            self.errorMessage = "Network error: Please check your connection and try again."
-                        }
-                        // Permission errors (common with Firebase)
-                        else if error.localizedDescription.contains("permission") || 
-                                error.localizedDescription.contains("Missing or insufficient permissions") {
-                            self.errorMessage = "Permission error: You may not have access to this household's chores."
-                            print("Permission error loading chores: \(error.localizedDescription)")
-                        }
-                        else {
-                            self.errorMessage = "Failed to load chores: \(error.localizedDescription)"
-                            print("Error loading chores: \(error.localizedDescription)")
-                        }
-                    } else {
-                        self.errorMessage = "Failed to load chores: \(error.localizedDescription)"
-                        print("Error loading chores: \(error.localizedDescription)")
+                self.isLoading = false
+                
+                // Handle specific error types more gracefully
+                if let nsError = error as NSError? {
+                    // Network connectivity issues
+                    if nsError.domain == NSURLErrorDomain {
+                        self.errorMessage = "Network error: Please check your connection and try again."
                     }
+                    // Permission errors (common with Firebase)
+                    else if error.localizedDescription.contains("permission") || 
+                            error.localizedDescription.contains("Missing or insufficient permissions") {
+                        self.errorMessage = "Permission error: You may not have access to this household's chores."
+                        print("Permission error loading chores: \\(error.localizedDescription)")
+                    }
+                    else {
+                        self.errorMessage = "Failed to load chores: \\(error.localizedDescription)"
+                        print("Error loading chores: \\(error.localizedDescription)")
+                    }
+                } else {
+                    self.errorMessage = "Failed to load chores: \\(error.localizedDescription)"
+                    print("Error loading chores: \\(error.localizedDescription)")
                 }
             }
         }
@@ -151,7 +158,7 @@ class ChoreViewModel: ObservableObject {
         errorMessage = nil
         
         do {
-            let fetchedChores = try await choreService.fetchChores(forHouseholdId: householdId)
+            let fetchedChores = try await choreService.fetchChores(forHouseholdId: householdId, includeCompleted: true)
             self.chores = fetchedChores
             self.isLoading = false
         } catch {
@@ -162,18 +169,15 @@ class ChoreViewModel: ObservableObject {
     
     /// Load a specific chore
     /// - Parameter id: Chore ID
+    @MainActor
     func loadChore(id: String) {
         Task {
             do {
                 if let chore = try await choreService.fetchChore(withId: id) {
-                    DispatchQueue.main.async {
-                        self.selectedChore = chore
-                    }
+                    self.selectedChore = chore
                 }
             } catch {
-                DispatchQueue.main.async {
-                    self.errorMessage = "Failed to load chore: \(error.localizedDescription)"
-                }
+                self.errorMessage = "Failed to load chore: \\(error.localizedDescription)"
             }
         }
     }
@@ -191,6 +195,7 @@ class ChoreViewModel: ObservableObject {
     ///   - recurrenceDaysOfWeek: Days of week for weekly recurrence
     ///   - recurrenceDayOfMonth: Day of month for monthly recurrence
     ///   - recurrenceEndDate: End date for recurring chores
+    @MainActor
     func createChore(
         title: String,
         description: String = "",
@@ -198,7 +203,7 @@ class ChoreViewModel: ObservableObject {
         dueDate: Date? = nil,
         pointValue: Int = 1,
         isRecurring: Bool = false,
-        recurrenceType: Chore.RecurrenceType? = nil,
+        recurrenceType: RecurrenceType? = nil,
         recurrenceInterval: Int? = nil,
         recurrenceDaysOfWeek: [Int]? = nil,
         recurrenceDayOfMonth: Int? = nil,
@@ -209,11 +214,15 @@ class ChoreViewModel: ObservableObject {
         
         Task {
             do {
+                guard let userid = authService.getCurrentUserId() else {
+                    return
+                }
+                
                 let newChore = try await choreService.createChore(
                     title: title,
                     description: description,
                     householdId: householdId,
-                    assignedToUserId: assignedToUserId,
+                    assignedToUserId: assignedToUserId, createdByUserId: userid,
                     dueDate: dueDate,
                     pointValue: pointValue,
                     isRecurring: isRecurring,
@@ -224,21 +233,18 @@ class ChoreViewModel: ObservableObject {
                     recurrenceEndDate: recurrenceEndDate
                 )
                 
-                DispatchQueue.main.async {
-                    self.chores.append(newChore)
-                    self.isLoading = false
-                }
+                self.chores.append(newChore)
+                self.isLoading = false
             } catch {
-                DispatchQueue.main.async {
-                    self.errorMessage = "Failed to create chore: \(error.localizedDescription)"
-                    self.isLoading = false
-                }
+                self.errorMessage = "Failed to create chore: \\(error.localizedDescription)"
+                self.isLoading = false
             }
         }
     }
     
     /// Update an existing chore
     /// - Parameter chore: The updated chore
+    @MainActor
     func updateChore(_ chore: Chore) {
         guard let id = chore.id else {
             errorMessage = "Invalid chore ID"
@@ -252,30 +258,27 @@ class ChoreViewModel: ObservableObject {
             do {
                 try await choreService.updateChore(chore)
                 
-                DispatchQueue.main.async {
-                    // Update in the chores array
-                    if let index = self.chores.firstIndex(where: { $0.id == id }) {
-                        self.chores[index] = chore
-                    }
-                    
-                    // Update selected chore if needed
-                    if self.selectedChore?.id == id {
-                        self.selectedChore = chore
-                    }
-                    
-                    self.isLoading = false
+                // Update in the chores array
+                if let index = self.chores.firstIndex(where: { $0.id == id }) {
+                    self.chores[index] = chore
                 }
+                
+                // Update selected chore if needed
+                if self.selectedChore?.id == id {
+                    self.selectedChore = chore
+                }
+                
+                self.isLoading = false
             } catch {
-                DispatchQueue.main.async {
-                    self.errorMessage = "Failed to update chore: \(error.localizedDescription)"
-                    self.isLoading = false
-                }
+                self.errorMessage = "Failed to update chore: \\(error.localizedDescription)"
+                self.isLoading = false
             }
         }
     }
     
     /// Delete a chore
     /// - Parameter choreId: Chore ID to delete
+    @MainActor
     func deleteChore(choreId: String) {
         isLoading = true
         errorMessage = nil
@@ -284,30 +287,27 @@ class ChoreViewModel: ObservableObject {
             do {
                 try await choreService.deleteChore(withId: choreId)
                 
-                DispatchQueue.main.async {
-                    // Remove from the chores array
-                    self.chores.removeAll { $0.id == choreId }
-                    
-                    // Clear selected chore if it was the deleted one
-                    if self.selectedChore?.id == choreId {
-                        self.selectedChore = nil
-                    }
-                    
-                    self.isLoading = false
+                // Remove from the chores array
+                self.chores.removeAll { $0.id == choreId }
+                
+                // Clear selected chore if it was the deleted one
+                if self.selectedChore?.id == choreId {
+                    self.selectedChore = nil
                 }
+                
+                self.isLoading = false
             } catch {
-                DispatchQueue.main.async {
-                    self.errorMessage = "Failed to delete chore: \(error.localizedDescription)"
-                    self.isLoading = false
-                }
+                self.errorMessage = "Failed to delete chore: \\(error.localizedDescription)"
+                self.isLoading = false
             }
         }
     }
     
     /// Mark a chore as completed
     /// - Parameter choreId: Chore ID to complete
+    @MainActor
     func completeChore(choreId: String) {
-        guard let userId = AuthService.shared.getCurrentUserId() else {
+        guard let userId = authService.getCurrentUserId() else {
             errorMessage = "Not signed in"
             return
         }
@@ -320,48 +320,45 @@ class ChoreViewModel: ObservableObject {
         Task {
             do {
                 // Complete the chore
-                let points = try await choreService.completeChore(choreId: choreId, completedByUserId: userId)
+                _ = try await choreService.completeChore(choreId: choreId, completedByUserId: userId, createNextRecurrence: false)
                 
                 // Reload the chore to get updated data
                 if let updatedChore = try await choreService.fetchChore(withId: choreId) {
-                    DispatchQueue.main.async {
-                        // Update in the chores array
-                        if let index = self.chores.firstIndex(where: { $0.id == choreId }) {
-                            self.chores[index] = updatedChore
-                        }
-                        
-                        // Update selected chore if needed
-                        if self.selectedChore?.id == choreId {
-                            self.selectedChore = updatedChore
-                        }
-                        
-                        // Show points earned message
-                        self.pointsEarnedMessage = "You earned \(points) points!"
-                        
-                        self.isLoading = false
+                    // Update in the chores array
+                    if let index = self.chores.firstIndex(where: { $0.id == choreId }) {
+                        self.chores[index] = updatedChore
                     }
+                    
+                    // Update selected chore if needed
+                    if self.selectedChore?.id == choreId {
+                        self.selectedChore = updatedChore
+                    }
+                    
+                    // Show points earned message
+                    self.pointsEarnedMessage = "You earned \\(points) points!"
+                    
+                    self.isLoading = false // Moved isLoading = false here, after chore update and points message
+                } else {
+                     self.isLoading = false // Ensure isLoading is set if chore isn't found
                 }
                 
                 // Check if any new badges were earned
-                let user = try await userService.fetchUser(withId: userId)
-                if let user = user {
+                // This can potentially be slow, consider if it needs to block the main chore completion flow
+                if let user = try await userService.fetchUser(withId: userId) {
                     // Check badge progress
                     let badgeMessages = self.checkNewlyEarnedBadges(user)
                     if !badgeMessages.isEmpty {
-                        DispatchQueue.main.async {
-                            self.badgeEarnedMessage = badgeMessages.joined(separator: "\n")
-                        }
+                        self.badgeEarnedMessage = badgeMessages.joined(separator: "\\n")
                     }
                 }
                 
                 // Reload all chores to show any new recurring instances
-                self.loadChores()
+                // This is another call to loadChores(), which is @MainActor and has its own Task.
+                self.loadChores() // This will set isLoading again.
                 
             } catch {
-                DispatchQueue.main.async {
-                    self.errorMessage = "Failed to complete chore: \(error.localizedDescription)"
-                    self.isLoading = false
-                }
+                self.errorMessage = "Failed to complete chore: \\(error.localizedDescription)"
+                self.isLoading = false
             }
         }
     }

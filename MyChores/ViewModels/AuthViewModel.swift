@@ -30,7 +30,7 @@ class AuthViewModel: ObservableObject {
     // MARK: - Private Properties
     
     /// Auth service instance
-    private let authService = AuthService.shared
+    private let authService: AuthServiceProtocol
     
     /// Cancellables set for managing subscriptions
     private var cancellables = Set<AnyCancellable>()
@@ -47,44 +47,44 @@ class AuthViewModel: ObservableObject {
     
     // MARK: - Initialization
     
-    init() {
-        // Subscribe to auth service changes
-        authService.$authState
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] (state: AuthService.AuthState) in
-                switch state {
-                case .unknown:
-                    self?.authState = .initializing
-                case .unauthenticated:
-                    self?.authState = .unauthenticated
-                    self?.currentUser = nil
-                case .authenticated:
-                    // Wait for user data to be fetched
-                    if self?.currentUser != nil {
-                        self?.authState = .authenticated
-                    } else {
-                        self?.authState = .authenticatedButProfileIncomplete
-                    }
-                }
+    init(authService: AuthServiceProtocol = AuthService.shared) {
+        self.authService = authService
+        
+        // Subscribe to changes from the authService
+        // When authService's objectWillChange fires (due to its @Published properties changing),
+        // we update AuthViewModel's corresponding @Published properties.
+        // This will, in turn, trigger AuthViewModel's objectWillChange and update any observing views.
+        authService.objectWillChange
+            .receive(on: DispatchQueue.main) // Ensure updates are on the main thread
+            .sink { [weak self] _ in // We don't need the specific output of objectWillChange, just the signal
+                guard let self = self else { return }
+                self.currentUser = self.authService.currentUser
+                self.authState = self.mapAuthState(self.authService.authState)
+                self.errorMessage = self.authService.errorMessage
             }
             .store(in: &cancellables)
         
-        authService.$currentUser
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] (user: User?) in
-                self?.currentUser = user
-                if user != nil && self?.authState == .authenticatedButProfileIncomplete {
-                    self?.authState = .authenticated
-                }
+        // Initial state mapping is important for the first load.
+        self.currentUser = authService.currentUser
+        self.authState = mapAuthState(authService.authState)
+        self.errorMessage = authService.errorMessage
+    }
+    
+    private func mapAuthState(_ serviceState: AuthService.AuthState) -> AuthState {
+        switch serviceState {
+        case .unknown:
+            return .initializing // Or a more appropriate mapping
+        case .authenticated:
+            // Further check if profile is complete if that logic remains relevant
+            // For now, directly mapping to authenticated
+            if let user = authService.currentUser, !user.name.isEmpty { // Basic check for profile completeness
+                return .authenticated
+            } else {
+                return .authenticatedButProfileIncomplete
             }
-            .store(in: &cancellables)
-        
-        authService.$errorMessage
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] errorMessage in
-                self?.errorMessage = errorMessage
-            }
-            .store(in: &cancellables)
+        case .unauthenticated:
+            return .unauthenticated
+        }
     }
     
     // MARK: - Authentication Methods
@@ -96,29 +96,28 @@ class AuthViewModel: ObservableObject {
     ///   - completion: Completion handler with success boolean and optional error
     func signIn(email: String, password: String, completion: @escaping (Bool, Error?) -> Void) async {
         guard isValidEmail(email) else {
-            errorMessage = "Please enter a valid email address"
-            completion(false, NSError(domain: "AuthViewModel", code: 100, userInfo: [NSLocalizedDescriptionKey: "Invalid email format"]))
+            let error = NSError(domain: "AuthViewModel", code: 0, userInfo: [NSLocalizedDescriptionKey: "Invalid email format."])
+            completion(false, error)
             return
         }
         
         guard !password.isEmpty else {
-            errorMessage = "Please enter your password"
-            completion(false, NSError(domain: "AuthViewModel", code: 103, userInfo: [NSLocalizedDescriptionKey: "Password is required"]))
+            let error = NSError(domain: "AuthViewModel", code: 0, userInfo: [NSLocalizedDescriptionKey: "Password cannot be empty."])
+            completion(false, error)
             return
         }
         
         isLoading = true
-        errorMessage = nil
+        // errorMessage = nil // Error message is now handled by observing authService.errorMessage
         
         do {
             try await authService.signIn(email: email, password: password)
-            isLoading = false
             completion(true, nil)
         } catch {
-            isLoading = false
-            errorMessage = mapAuthError(error)
+            // errorMessage = mapAuthError(error) // Error message is now handled by observing authService.errorMessage
             completion(false, error)
         }
+        isLoading = false
     }
     
     /// Create a new account
@@ -129,102 +128,54 @@ class AuthViewModel: ObservableObject {
     ///   - completion: Completion handler with success boolean and optional error
     func signUp(name: String, email: String, password: String, completion: @escaping (Bool, Error?) -> Void = {_,_ in }) async {
         guard !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            errorMessage = "Please enter your name"
-            completion(false, NSError(domain: "AuthViewModel", code: 102, userInfo: [NSLocalizedDescriptionKey: "Name is required"]))
+            let error = NSError(domain: "AuthViewModel", code: 0, userInfo: [NSLocalizedDescriptionKey: "Name cannot be empty."])
+            completion(false, error)
             return
         }
         
         guard isValidEmail(email) else {
-            errorMessage = "Please enter a valid email address"
-            completion(false, NSError(domain: "AuthViewModel", code: 100, userInfo: [NSLocalizedDescriptionKey: "Invalid email format"]))
+            let error = NSError(domain: "AuthViewModel", code: 0, userInfo: [NSLocalizedDescriptionKey: "Invalid email format."])
+            completion(false, error)
             return
         }
         
         guard password.count >= 6 else {
-            errorMessage = "Password must be at least 6 characters"
-            completion(false, NSError(domain: "AuthViewModel", code: 101, userInfo: [NSLocalizedDescriptionKey: "Password too short"]))
+            let error = NSError(domain: "AuthViewModel", code: 0, userInfo: [NSLocalizedDescriptionKey: "Password must be at least 6 characters."])
+            completion(false, error)
             return
         }
         
         isLoading = true
-        errorMessage = nil
+        // errorMessage = nil // Error message is now handled by observing authService.errorMessage
         
         do {
             try await authService.signUp(name: name, email: email, password: password)
-            
-            // After sign up, explicitly refresh the user to ensure data is loaded
-            let refreshSuccess = await refreshCurrentUser()
-            print("User refresh after signup: \(refreshSuccess ? "success" : "failed")")
-            
-            isLoading = false
             completion(true, nil)
         } catch {
-            isLoading = false
-            errorMessage = mapAuthError(error)
+            // errorMessage = mapAuthError(error) // Error message is now handled by observing authService.errorMessage
             completion(false, error)
         }
+        isLoading = false
     }
     
     /// Refresh the current user profile data from Firestore
     /// - Returns: Success boolean
     @MainActor
     func refreshCurrentUser() async -> Bool {
-        guard let userId = authService.getCurrentUserId() else {
-            print("refreshCurrentUser: No current user ID")
+        guard authService.getCurrentUserId() != nil else {
+            // errorMessage = "User not logged in." // Error message is now handled by observing authService.errorMessage
             return false
         }
         
         isLoading = true
         
         do {
-            print("Attempting to refresh user: \(userId)")
-            if let updatedUser = try await authService.refreshCurrentUser() {
-                print("Successfully refreshed user")
-                self.currentUser = updatedUser
-                
-                // Ensure auth state is updated
-                if self.authState == .authenticatedButProfileIncomplete {
-                    self.authState = .authenticated
-                }
-                
-                isLoading = false
-                return true
-            } else {
-                print("User refresh returned nil")
-                
-                // Try to make sure the user exists in Firestore
-                if let firebaseUser = Auth.auth().currentUser {
-                    print("Attempting to create user if needed: \(userId)")
-                    do {
-                        try await UserService.shared.createNewUserIfNeeded(
-                            userId: userId,
-                            name: firebaseUser.displayName ?? "User",
-                            email: firebaseUser.email ?? "unknown@example.com"
-                        )
-                        
-                        // Try to fetch the user again
-                        if let createdUser = try await authService.refreshCurrentUser() {
-                            print("Successfully created and fetched user")
-                            self.currentUser = createdUser
-                            
-                            // Ensure auth state is updated
-                            if self.authState == .authenticatedButProfileIncomplete {
-                                self.authState = .authenticated
-                            }
-                            
-                            isLoading = false
-                            return true
-                        }
-                    } catch {
-                        print("Error creating user: \(error.localizedDescription)")
-                    }
-                }
-                
-                isLoading = false
-                return false
-            }
+            _ = try await authService.refreshCurrentUser()
+            // self.currentUser = refreshedUser // currentUser is now handled by observing authService.currentUser
+            isLoading = false
+            return true
         } catch {
-            print("Error refreshing user: \(error.localizedDescription)")
+            // errorMessage = "Failed to refresh user: \(error.localizedDescription)" // Error message is now handled by observing authService.errorMessage
             isLoading = false
             return false
         }
@@ -234,17 +185,16 @@ class AuthViewModel: ObservableObject {
     /// - Parameter completion: Completion handler with success boolean and optional error
     func signOut(completion: @escaping (Bool, Error?) -> Void = {_,_ in }) async {
         isLoading = true
-        errorMessage = nil
+        // errorMessage = nil // Error message is now handled by observing authService.errorMessage
         
         do {
             try authService.signOut()
-            isLoading = false
             completion(true, nil)
         } catch {
-            isLoading = false
-            errorMessage = mapAuthError(error)
+            // errorMessage = "Failed to sign out: \(error.localizedDescription)" // Error message is now handled by observing authService.errorMessage
             completion(false, error)
         }
+        isLoading = false
     }
     
     /// Reset password for a user
@@ -252,24 +202,77 @@ class AuthViewModel: ObservableObject {
     ///   - email: User's email
     ///   - completion: Completion handler with success boolean and optional error
     func resetPassword(for email: String, completion: @escaping (Bool, Error?) -> Void = {_,_ in }) async {
-        guard isValidEmail(email) else {
-            errorMessage = "Please enter a valid email address"
-            completion(false, NSError(domain: "AuthViewModel", code: 100, userInfo: [NSLocalizedDescriptionKey: "Invalid email format"]))
+        isLoading = true
+        // errorMessage = nil // Error message is now handled by observing authService.errorMessage
+        do {
+            try await authService.resetPassword(for: email)
+            completion(true, nil)
+        } catch {
+            // errorMessage = "Failed to send password reset: \(error.localizedDescription)" // Error message is now handled by observing authService.errorMessage
+            completion(false, error)
+        }
+        isLoading = false
+    }
+    
+    /// Attempts to ensure the current user's profile exists in Firestore, creating it if necessary.
+    /// This is intended as a recovery mechanism if the profile is missing.
+    func ensureUserProfileExists() async {
+        isLoading = true
+        // Error messages and state changes (currentUser, authState) are handled by authService
+        // and propagated via the objectWillChange sink.
+        await authService.ensureCurrentProfileExists()
+        isLoading = false
+    }
+    
+    /// Updates the current user's privacy settings.
+    /// - Parameters:
+    ///   - showProfile: Whether to show the profile to others.
+    ///   - showAchievements: Whether to show achievements to others.
+    ///   - shareActivity: Whether to share activity with the household.
+    func updateUserPrivacySettings(showProfile: Bool, showAchievements: Bool, shareActivity: Bool) async {
+        isLoading = true
+        // errorMessage will be updated by authService via Combine if an error occurs.
+        // currentUser and authState will also be updated by authService if the operation is successful (due to refreshCurrentUser).
+        do {
+            try await authService.updateUserPrivacySettings(
+                showProfile: showProfile,
+                showAchievements: showAchievements,
+                shareActivity: shareActivity
+            )
+            // Optionally, provide a success message or handle UI updates if needed directly after success,
+            // though most state changes should come from observing authService.
+            print("AuthViewModel: updateUserPrivacySettings call completed.")
+        } catch {
+            // Error is already set on authService.errorMessage and propagated.
+            // No need to set self.errorMessage here as it's driven by authService.
+            print("AuthViewModel: Error during updateUserPrivacySettings: \(error.localizedDescription)")
+        }
+        isLoading = false
+    }
+    
+    /// Updates the current user's name.
+    /// - Parameter newName: The new name for the user.
+    func updateUserName(newName: String) async {
+        guard !newName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            self.errorMessage = "Name cannot be empty."
+            // Or handle this via a specific error type if preferred
             return
         }
         
         isLoading = true
-        errorMessage = nil
-        
+        // errorMessage will be updated by authService via Combine if an error occurs.
+        // currentUser and authState will also be updated by authService if the operation is successful.
         do {
-            try await authService.resetPassword(for: email)
-            isLoading = false
-            completion(true, nil)
+            // Assuming AuthServiceProtocol is extended with updateUserName
+            try await authService.updateUserName(newName: newName)
+            print("AuthViewModel: updateUserName call completed for \(newName)")
+            // Optionally, trigger a manual refresh or rely on the Combine sink from authService
+            // await self.refreshCurrentUser() // This might be redundant
         } catch {
-            isLoading = false
-            errorMessage = mapAuthError(error)
-            completion(false, error)
+            // Error is already set on authService.errorMessage and propagated.
+            print("AuthViewModel: Error during updateUserName: \(error.localizedDescription)")
         }
+        isLoading = false
     }
     
     // MARK: - Helper Methods
@@ -281,55 +284,5 @@ class AuthViewModel: ObservableObject {
         let emailRegEx = "[A-Z0-9a-z._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,64}"
         let emailPred = NSPredicate(format:"SELF MATCHES %@", emailRegEx)
         return emailPred.evaluate(with: email)
-    }
-    
-    /// Maps Firebase Auth errors to user-friendly error messages
-    /// - Parameter error: Firebase Auth error
-    /// - Returns: User-friendly error message
-    private func mapAuthError(_ error: Error) -> String {
-        let nsError = error as NSError
-        
-        // Check if it's a network-related error
-        if nsError.domain == NSURLErrorDomain {
-            return "Network error. Please check your connection and try again."
-        }
-        
-        // For Firebase Auth errors
-        if nsError.domain == AuthErrorDomain {
-            switch nsError.code {
-            case 17009, 17011: // Invalid email or password
-                return "Invalid email or password. Please try again."
-            case 17008: // Invalid email format
-                return "Please enter a valid email address."
-            case 17007: // Email already in use
-                return "This email is already in use. Try signing in or use a different email."
-            case 17026: // Weak password
-                return "Password is too weak. Please use a stronger password."
-            case 17005: // User disabled
-                return "This account has been disabled. Please contact support."
-            case 17020: // Network error
-                return "Network error. Please check your connection and try again."
-            case 17010: // Too many failed attempts
-                return "Too many failed attempts. Please try again later."
-            default:
-                return error.localizedDescription
-            }
-        }
-        
-        // For Firestore errors
-        if nsError.domain == FirestoreErrorDomain {
-            switch nsError.code {
-            case 7: // Not found
-                return "User profile not found. Please try signing in again."
-            case 14: // Unavailable
-                return "Service temporarily unavailable. Please try again later."
-            case 2: // Internal error
-                return "An unexpected error occurred. Please try again."
-            default:
-                return error.localizedDescription
-            }
-        }
-        
-        return error.localizedDescription
     }
 }

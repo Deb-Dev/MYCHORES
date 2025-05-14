@@ -21,7 +21,7 @@ struct AddChoreView: View {
     @State private var hasDueDate = true
     @State private var pointValue = 1
     @State private var isRecurring = false
-    @State private var recurrenceType: Chore.RecurrenceType = .weekly
+    @State private var recurrenceType: RecurrenceType = .weekly
     @State private var recurrenceInterval = 1
     @State private var recurrenceDaysOfWeek: [Int] = []
     @State private var recurrenceDayOfMonth: Int?
@@ -53,7 +53,10 @@ struct AddChoreView: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Add") {
-                        addChore()
+                        Task{
+                            await addChore()
+
+                        }
                     }
                     .disabled(!isFormValid)
                 }
@@ -150,9 +153,9 @@ struct AddChoreView: View {
     
     private var recurrenceTypePickerView: some View {
         Picker("Repeat", selection: $recurrenceType) {
-            Text("Daily").tag(Chore.RecurrenceType.daily)
-            Text("Weekly").tag(Chore.RecurrenceType.weekly)
-            Text("Monthly").tag(Chore.RecurrenceType.monthly)
+            Text("Daily").tag(RecurrenceType.daily)
+            Text("Weekly").tag(RecurrenceType.weekly)
+            Text("Monthly").tag(RecurrenceType.monthly)
         }
         .pickerStyle(SegmentedPickerStyle())
     }
@@ -218,7 +221,7 @@ struct AddChoreView: View {
     
     // MARK: - Helper Methods
     
-    private func addChore() {
+    private func addChore() async {
         // Prepare all parameters
         let finalDueDate = hasDueDate ? dueDate : nil
         let finalRecurrenceType = isRecurring ? recurrenceType : nil
@@ -228,7 +231,7 @@ struct AddChoreView: View {
         let finalRecurrenceDayOfMonth = isRecurring && recurrenceType == .monthly ? recurrenceDayOfMonth : nil
         
         // Create the chore with the prepared parameters
-        viewModel.createChore(
+        await viewModel.createChore(
             title: title,
             description: description,
             assignedToUserId: assignedToUserId,
@@ -266,7 +269,7 @@ struct AddChoreView: View {
                 }
                 
                 // Now fetch the members
-                let users = try await UserService.shared.getAllHouseholdMembers(forHouseholdId: householdId)
+                let users = try await UserService.shared.fetchUsers(inHousehold: householdId)
                 print("✅ Fetched \(users.count) household members")
                 
                 // If we don't have any users, fall back to the current user at minimum

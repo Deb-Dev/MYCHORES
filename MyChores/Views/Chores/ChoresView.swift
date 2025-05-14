@@ -30,41 +30,7 @@ struct ChoresView: View {
     var body: some View {
         ZStack {
             Theme.Colors.background.ignoresSafeArea()
-            
-            VStack(spacing: 0) {
-                // Filter controls
-                FilterControlsView(viewModel: viewModel)
-                
-                // Chore content
-                choreContent
-            }
-            .navigationTitle("Chores")
-            .toolbar {
-                ToolbarItem(placement: .primaryAction) {
-                    Button {
-                        showingAddChore = true
-                    } label: {
-                        Image(systemName: "plus")
-                    }
-                }
-            }
-            .sheet(isPresented: $showingAddChore, onDismiss: {
-                // Refresh chores when sheet is dismissed
-                viewModel.loadChores()
-            }) {
-                AddChoreView(householdId: viewModel.householdId)
-            }
-            .sheet(item: $showingChoreDetail) { chore in
-                ChoreDetailView(
-                    chore: chore,
-                    onComplete: {
-                        viewModel.completeChore(choreId: chore.id ?? "")
-                    },
-                    onDelete: {
-                        viewModel.deleteChore(choreId: chore.id ?? "")
-                    }
-                )
-            }
+            mainChoresContent // Use the extracted computed property
         }
         .modifier(ToastViewModifier(toastManager: toastManager))
         .refreshable {
@@ -87,6 +53,44 @@ struct ChoresView: View {
                 toastManager.show(ToastManager.ToastType.error(message))
                 viewModel.errorMessage = nil
             }
+        }
+    }
+    
+    // Extracted main content view
+    private var mainChoresContent: some View {
+        VStack(spacing: 0) {
+            // Filter controls
+            FilterControlsView(viewModel: viewModel)
+            
+            // Chore content
+            choreContent
+        }
+        .navigationTitle("Chores")
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button {
+                    showingAddChore = true
+                } label: {
+                    Image(systemName: "plus")
+                }
+            }
+        }
+        .sheet(isPresented: $showingAddChore, onDismiss: {
+            // Refresh chores when sheet is dismissed
+            viewModel.loadChores()
+        }) {
+            AddChoreView(householdId: viewModel.householdId)
+        }
+        .sheet(item: $showingChoreDetail) { chore in
+            ChoreDetailView(
+                chore: chore,
+                onComplete: {
+                    viewModel.completeChore(choreId: chore.id ?? "")
+                },
+                onDelete: {
+                    viewModel.deleteChore(choreId: chore.id ?? "")
+                }
+            )
         }
     }
     

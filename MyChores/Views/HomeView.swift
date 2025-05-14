@@ -43,7 +43,7 @@ struct HomeView: View {
                             .tag(1)
                         
                         // Achievements tab
-                        achievementsTabView
+                            achievementsTabView
                             .tabItem {
                                 Label("Achievements", systemImage: "star.fill")
                             }
@@ -290,29 +290,33 @@ struct ProfileView: View {
             Text("Are you sure you want to sign out?")
         }
         .onAppear {
-            // Load any user-specific settings when the profile view appears
-            loadUserSettings()
+            Task {
+                // Ensure user data is fresh when the view appears
+                _ = await authViewModel.refreshCurrentUser()
+                // Now load settings from the potentially updated currentUser in authViewModel
+                loadUserSettings()
+            }
         }
     }
     
     // MARK: - User Settings
     
     private func loadUserSettings() {
-        // This method loads all user settings from UserDefaults and other sources
-        // Can be extended to load from Firestore or other remote sources if needed
-        
-        // If the user has privacy settings in their User object, we should sync those first
-        Task {
-            if let user = await UserService.shared.getCurrentUser() {
-                // Sync privacy settings from user model to UserDefaults if they exist
-                UserDefaults.standard.set(user.privacySettings.showProfile, 
-                                         forKey: "showProfileToOthers")
-                UserDefaults.standard.set(user.privacySettings.showAchievements, 
-                                         forKey: "showAchievementsToOthers")
-                UserDefaults.standard.set(user.privacySettings.shareActivity, 
-                                         forKey: "shareActivityWithHousehold")
-            }
+        // This method loads user settings from the currentUser in AuthViewModel into UserDefaults
+        guard let user = authViewModel.currentUser else {
+            print("ProfileView: Cannot load user settings, currentUser is nil.")
+            return
         }
+        
+        print("ProfileView: Loading user settings into UserDefaults from authViewModel.currentUser")
+        // Assuming user.privacySettings is a non-optional struct or has default values.
+        // If privacySettings itself can be nil, add appropriate optional chaining or guarding.
+        UserDefaults.standard.set(user.privacySettings.showProfile, 
+                                 forKey: "showProfileToOthers")
+        UserDefaults.standard.set(user.privacySettings.showAchievements, 
+                                 forKey: "showAchievementsToOthers")
+        UserDefaults.standard.set(user.privacySettings.shareActivity, 
+                                 forKey: "shareActivityWithHousehold")
     }
     
     // MARK: - Profile Header
@@ -498,77 +502,96 @@ struct ProfileView: View {
         Button {
             showingSignOutConfirmation = true
         } label: {
-            HStack(spacing: 8) {
-                Image(systemName: "arrow.right.square.fill")
+            HStack {
+                Spacer()
                 Text("Sign Out")
+                    .font(Theme.Typography.bodyFontSystem.bold())
+                    .foregroundColor(.white)
+                Spacer()
             }
-            .font(Theme.Typography.bodyFontSystem.weight(.medium))
-            .foregroundColor(.white)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 16)
-            .background(
-                LinearGradient(
-                    colors: [Theme.Colors.error, Theme.Colors.error.opacity(0.8)],
-                    startPoint: .leading,
-                    endPoint: .trailing
-                )
-            )
+            .padding()
+            .background(Theme.Colors.error)
             .cornerRadius(Theme.Dimensions.cornerRadiusMedium)
-            .shadow(color: Theme.Colors.error.opacity(0.3), radius: 5, x: 0, y: 2)
         }
     }
     
     // MARK: - Edit Profile View
     
     private var editProfileView: some View {
-        NavigationStack {
-            ZStack {
-                Theme.Colors.background.ignoresSafeArea()
-                
-                VStack(spacing: 24) {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Display Name")
-                            .font(Theme.Typography.captionFontSystem)
-                            .foregroundColor(Theme.Colors.textSecondary)
-                        
-                        TextField("Enter your name", text: $editedName)
-                            .font(Theme.Typography.bodyFontSystem)
-                            .padding()
-                            .background(Theme.Colors.cardBackground)
-                            .cornerRadius(Theme.Dimensions.cornerRadiusSmall)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: Theme.Dimensions.cornerRadiusSmall)
-                                    .stroke(Theme.Colors.textSecondary.opacity(0.3), lineWidth: 1)
-                            )
-                    }
-                    
-                    // Future: Add photo upload option
-                    
-                    Spacer()
+        NavigationView {
+            Form {
+                Section(header: Text("Personal Information")) {
+                    TextField("Name", text: $editedName)
                 }
-                .padding()
+                
+                // TODO: Add more editable fields like photoURL if needed
+                
+                Button("Save Profile") {
+                    saveProfile()
+                    isEditingProfile = false
+                }
+                .disabled(editedName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
             .navigationTitle("Edit Profile")
-            .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
+                ToolbarItem(placement: .navigationBarLeading) {
                     Button("Cancel") {
                         isEditingProfile = false
                     }
-                }
-                
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") {
-                        saveProfile()
-                    }
-                    .disabled(editedName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
             }
         }
     }
     
-    // MARK: - Helper Views
+    // MARK: - Helper Methods
     
+    private func getInitials() -> String {
+        guard let name = authViewModel.currentUser?.name else { return "" }
+        return name.components(separatedBy: " ")
+            .reduce("") { ($0 == "" ? "" : "\($0.first!)") + "\($1.first!)" }
+            .uppercased()
+    }
+    
+    private func calculateMemberSince() -> String {
+        guard let createdAt = authViewModel.currentUser?.createdAt else { return "N/A" }
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        return formatter.string(from: createdAt)
+    }
+    
+    private func signOut() {
+        Task {
+            do {
+                try await authViewModel.signOut()
+                // Navigation to login screen will be handled by MainView based on auth state
+            } catch {
+                // Handle error (e.g., show an alert)
+                print("Error signing out: \\(error.localizedDescription)")
+            }
+        }
+    }
+    
+    private func saveProfile() {
+        // TODO: Move this logic to AuthViewModel and then to AuthService
+        // For now, directly updating Firestore for simplicity
+        guard let userId = authViewModel.currentUser?.id else { return }
+        let newName = editedName.trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        if newName.isEmpty {
+            // Optionally, show an alert to the user that name cannot be empty
+            return
+        }
+        
+        Task {
+            await authViewModel.updateUserName(newName: newName)
+            // Optionally, refresh user data or rely on existing listeners
+            // _ = await authViewModel.refreshCurrentUser() // This might be redundant if listeners are robust
+        }
+    }
+    
+    // MARK: - UI Components
+    
+    @ViewBuilder
     private func statCard(value: String, label: String, icon: String, color: Color) -> some View {
         HStack(spacing: 12) {
             Image(systemName: icon)
@@ -620,66 +643,6 @@ struct ProfileView: View {
             }
             .padding(.vertical, 16)
         }
-    }
-    
-    // MARK: - Helper Methods
-    
-    private func getInitials() -> String {
-        guard let name = authViewModel.currentUser?.name else { return "?" }
-        
-        let components = name.components(separatedBy: " ")
-        if components.count > 1,
-           let first = components.first?.first,
-           let last = components.last?.first {
-            return String(first) + String(last)
-        } else if let first = components.first?.first {
-            return String(first)
-        }
-        
-        return "?"
-    }
-    
-    private func calculateMemberSince() -> String {
-        guard let createdAt = authViewModel.currentUser?.createdAt else { return "N/A" }
-        
-        let formatter = DateFormatter()
-        formatter.dateFormat = "MMM yyyy"
-        return formatter.string(from: createdAt)
-    }
-    
-    private func signOut() {
-        Task {
-            await authViewModel.signOut { success, error in
-                if !success {
-                    print("Sign out failed: \(error?.localizedDescription ?? "Unknown error")")
-                }
-            }
-        }
-    }
-    
-    private func saveProfile() {
-        guard !editedName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-              let userId = authViewModel.currentUser?.id else {
-            isEditingProfile = false
-            return
-        }
-        
-        // Update user's name in Firestore
-        let db = Firestore.firestore()
-        db.collection("users").document(userId).updateData([
-            "name": editedName.trimmingCharacters(in: .whitespacesAndNewlines)
-        ]) { error in
-            if let error = error {
-                print("Error updating profile: \(error.localizedDescription)")
-            } else {
-                // Refresh current user to get updated data
-                Task {
-                    await authViewModel.refreshCurrentUser()
-                }
-            }
-        }
-        
-        isEditingProfile = false
     }
 }
 
@@ -1100,6 +1063,8 @@ struct NotificationSettingsView: View {
 /// Privacy settings view
 struct PrivacySettingsView: View {
     @Environment(\.dismiss) private var dismiss
+    @EnvironmentObject private var authViewModel: AuthViewModel // Ensure AuthViewModel is available
+
     @State private var showProfileToOthers = UserDefaults.standard.bool(forKey: "showProfileToOthers")
     @State private var showAchievementsToOthers = UserDefaults.standard.bool(forKey: "showAchievementsToOthers")
     @State private var shareActivityWithHousehold = UserDefaults.standard.bool(forKey: "shareActivityWithHousehold")
@@ -1168,8 +1133,10 @@ struct PrivacySettingsView: View {
                 .toolbar {
                     ToolbarItem(placement: .topBarTrailing) {
                         Button("Done") {
-                            savePrivacySettings()
-                            dismiss()
+                            Task {
+                                await savePrivacySettings()
+                                dismiss()
+                            }
                         }
                     }
                 }
@@ -1180,27 +1147,37 @@ struct PrivacySettingsView: View {
         }
     }
     
-    private func savePrivacySettings() {
-        // Save privacy settings to UserDefaults
+    private func savePrivacySettings() async { // Make async
+        // Save privacy settings to UserDefaults (local cache/UI responsiveness)
         UserDefaults.standard.set(showProfileToOthers, forKey: "showProfileToOthers")
         UserDefaults.standard.set(showAchievementsToOthers, forKey: "showAchievementsToOthers")
         UserDefaults.standard.set(shareActivityWithHousehold, forKey: "shareActivityWithHousehold")
         
-        // Here we would also update server-side privacy settings
-        Task {
-            await UserService.shared.updatePrivacySettings(
-                showProfile: showProfileToOthers,
-                showAchievements: showAchievementsToOthers,
-                shareActivity: shareActivityWithHousehold
-            )
-        }
+        // Update server-side privacy settings via AuthViewModel
+        print("PrivacySettingsView: Calling authViewModel.updateUserPrivacySettings")
+        await authViewModel.updateUserPrivacySettings(
+            showProfile: showProfileToOthers,
+            showAchievements: showAchievementsToOthers,
+            shareActivity: shareActivityWithHousehold
+        )
+        // After this, AuthViewModel will get updated currentUser from AuthService if successful,
+        // which should then reflect in ProfileView if it re-evaluates its onAppear or observes currentUser directly.
     }
     
     private func loadPrivacySettings() {
-        // Load privacy settings from UserDefaults
-        showProfileToOthers = UserDefaults.standard.bool(forKey: "showProfileToOthers")
-        showAchievementsToOthers = UserDefaults.standard.bool(forKey: "showAchievementsToOthers")
-        shareActivityWithHousehold = UserDefaults.standard.bool(forKey: "shareActivityWithHousehold")
+        // Load from AuthViewModel's currentUser first if available, then UserDefaults as fallback or initial state.
+        if let user = authViewModel.currentUser {
+            print("PrivacySettingsView: Loading privacy settings from authViewModel.currentUser")
+            showProfileToOthers = user.privacySettings.showProfile
+            showAchievementsToOthers = user.privacySettings.showAchievements
+            shareActivityWithHousehold = user.privacySettings.shareActivity
+        } else {
+            // Fallback to UserDefaults if currentUser is not yet available (should be rare if ProfileView ensures refresh)
+            print("PrivacySettingsView: authViewModel.currentUser is nil, loading from UserDefaults as fallback.")
+            showProfileToOthers = UserDefaults.standard.bool(forKey: "showProfileToOthers")
+            showAchievementsToOthers = UserDefaults.standard.bool(forKey: "showAchievementsToOthers")
+            shareActivityWithHousehold = UserDefaults.standard.bool(forKey: "shareActivityWithHousehold")
+        }
     }
 }
 

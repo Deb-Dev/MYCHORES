@@ -6,6 +6,12 @@
 
 import Foundation
 import FirebaseFirestore
+/// Types of recurrence patterns
+public enum RecurrenceType: String, Codable {
+    case daily
+    case weekly
+    case monthly
+}
 
 /// Represents a chore task within a household
 struct Chore: Identifiable, Codable, Equatable {
@@ -87,13 +93,6 @@ struct Chore: Identifiable, Codable, Equatable {
         case recurrenceDayOfMonth
         case recurrenceEndDate
         case nextOccurrenceDate
-    }
-    
-    /// Types of recurrence patterns
-    enum RecurrenceType: String, Codable {
-        case daily
-        case weekly
-        case monthly
     }
     
     /// Check if the chore is overdue

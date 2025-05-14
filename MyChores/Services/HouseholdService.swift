@@ -8,12 +8,24 @@ import Foundation
 import FirebaseFirestore
 import FirebaseAuth
 
+// MARK: - HouseholdServiceProtocol
+protocol HouseholdServiceProtocol {
+    func createHousehold(name: String, ownerUserId: String) async throws -> Household
+    func fetchHousehold(withId id: String) async throws -> Household?
+    func fetchHouseholds(forUserId userId: String) async throws -> [Household]
+    func findHousehold(byInviteCode inviteCode: String) async throws -> Household?
+    func addMember(userId: String, toHouseholdId householdId: String) async throws
+    func removeMember(userId: String, fromHouseholdId householdId: String) async throws
+    func updateHouseholdName(householdId: String, newName: String) async throws
+    func deleteHousehold(householdId: String, userId: String) async throws
+}
+
 /// Service for household data operations
-class HouseholdService {
+class HouseholdService: HouseholdServiceProtocol {
     // MARK: - Shared Instance
     
     /// Shared instance for singleton access
-    static let shared = HouseholdService()
+    static let shared = HouseholdService(userService: UserService.shared, choreService: ChoreService.shared)
     
     // MARK: - Private Properties
     
@@ -25,10 +37,17 @@ class HouseholdService {
         return db.collection("households")
     }
     
+    // MARK: - Dependencies (NEW)
+    private let userService: UserServiceProtocol // NEW
+    private let choreService: ChoreServiceProtocol // NEW
+    
     // MARK: - Initialization
     
     /// Private initializer to enforce singleton pattern
-    private init() {}
+    private init(userService: UserServiceProtocol, choreService: ChoreServiceProtocol) {
+        self.userService = userService // NEW
+        self.choreService = choreService // NEW
+    }
     
     // MARK: - Household CRUD Operations
     
@@ -62,7 +81,7 @@ class HouseholdService {
         newHousehold.id = docRef.documentID
         
         // Add household to user's list
-        try await UserService.shared.addUserToHousehold(userId: ownerUserId, householdId: docRef.documentID)
+        try await self.userService.addUserToHousehold(userId: ownerUserId, householdId: docRef.documentID)
         
         return newHousehold
     }
@@ -165,7 +184,7 @@ class HouseholdService {
             ])
             
             // Update the user
-            try await UserService.shared.addUserToHousehold(userId: userId, householdId: householdId)
+            try await self.userService.addUserToHousehold(userId: userId, householdId: householdId)
         } catch {
             print("Error updating household members: \(error.localizedDescription)")
             throw error
@@ -193,7 +212,7 @@ class HouseholdService {
         ])
         
         // Update the user
-        try await UserService.shared.removeUserFromHousehold(userId: userId, householdId: householdId)
+        try await self.userService.removeUserFromHousehold(userId: userId, householdId: householdId)
     }
     
     /// Update household name
@@ -221,11 +240,11 @@ class HouseholdService {
         }
         
         // Delete associated chores
-        try await ChoreService.shared.deleteAllChores(forHouseholdId: householdId)
+        try await choreService.deleteAllChores(forHouseholdId: householdId)
         
         // Remove household from all members
         for memberId in household.memberUserIds {
-            try await UserService.shared.removeUserFromHousehold(userId: memberId, householdId: householdId)
+            try await userService.removeUserFromHousehold(userId: memberId, householdId: householdId)
         }
         
         // Delete the household document

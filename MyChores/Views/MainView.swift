@@ -122,7 +122,8 @@ struct LoadingView: View {
         retryCount += 1
         
         // Reset timeout timer
-        timeoutTimer.upstream.connect().cancel()
+        // Re-create the timer subscription to reset it
+        _ = timeoutTimer.upstream.connect() // This re-establishes the subscription
         
         // Force a refresh of auth state
         Task {
@@ -131,53 +132,54 @@ struct LoadingView: View {
     }
     
     private func forceRefreshUser() async {
-        // First try to reload the Firebase user
-        if let currentUser = Auth.auth().currentUser {
-            do {
-                try await currentUser.reload()
+        // First try to reload the Firebase user. This is a direct Firebase SDK call.
+        // It's acceptable here as it's about the raw auth state before dealing with our app's user profile.
+        guard let currentUser = Auth.auth().currentUser else {
+            print("LoadingView: No Firebase user to refresh.")
+            // If no Firebase user, AuthViewModel should eventually reflect this via its listener to AuthService.
+            // We might want to ensure AuthViewModel is nudged if it's stuck.
+            await authViewModel.refreshCurrentUser() // Call refresh to potentially update state if stuck.
+            return
+        }
+
+        do {
+            try await currentUser.reload()
+            print("LoadingView: Firebase user reloaded successfully.")
+
+            // Then force a refresh of the Firestore user data via AuthViewModel
+            let refreshSuccess = await authViewModel.refreshCurrentUser()
+            print("LoadingView: AuthViewModel.refreshCurrentUser() result: \(refreshSuccess ? "success" : "failed")")
+            
+            // If we still don't have a valid user profile (e.g., authState is still .authenticatedButProfileIncomplete
+            // or currentUser is nil in AuthViewModel), try the more direct profile existence check.
+            if !refreshSuccess || authViewModel.currentUser == nil || authViewModel.authState == .authenticatedButProfileIncomplete {
+                print("LoadingView: Refresh failed or profile still incomplete. Attempting to ensure profile exists via AuthViewModel.")
+                // Short delay to let any pending Firestore operations complete
+                try? await Task.sleep(nanoseconds: 500_000_000) // 0.5 second
                 
-                // Then force a refresh of the Firestore user data
-                let refreshSuccess = await authViewModel.refreshCurrentUser()
-                print("User refresh result: \(refreshSuccess ? "success" : "failed")")
+                await authViewModel.ensureUserProfileExists() // Use the ViewModel method
+                print("LoadingView: AuthViewModel.ensureUserProfileExists() called.")
+
+                // After attempting to ensure the profile, try one final refresh to update the local state.
+                let finalAttempt = await authViewModel.refreshCurrentUser()
+                print("LoadingView: Final refreshCurrentUser() attempt after ensureUserProfileExists: \(finalAttempt ? "success" : "failed")")
                 
-                // If we still don't have a valid user, try a more aggressive approach
-                if !refreshSuccess {
-                    // Short delay to let any pending Firestore operations complete
-                    try? await Task.sleep(nanoseconds: 1_000_000_000) // 1 second
-                    
-                    // Try fetching again after the delay
-                    let delayedRefresh = await authViewModel.refreshCurrentUser()
-                    print("Delayed refresh attempt: \(delayedRefresh ? "success" : "failed")")
-                    
-                    // If still unsuccessful, try to recreate the user
-                    if !delayedRefresh, let firebaseUser = Auth.auth().currentUser {
-                        print("Trying to create user as fallback")
-                        do {
-                            try await UserService.shared.createNewUserIfNeeded(
-                                userId: firebaseUser.uid,
-                                name: firebaseUser.displayName ?? "User",
-                                email: firebaseUser.email ?? "unknown@example.com"
-                            )
-                            
-                            // Try one final refresh
-                            let finalAttempt = await authViewModel.refreshCurrentUser() 
-                            print("Final refresh attempt: \(finalAttempt ? "success" : "failed")")
-                            
-                            // If all else failed, force a state transition
-                            if !finalAttempt && authViewModel.authState == .authenticatedButProfileIncomplete {
-                                await MainActor.run {
-                                    print("Forcing state transition to authenticated")
-                                    authViewModel.authState = .authenticated
-                                }
-                            }
-                        } catch {
-                            print("Failed to create user: \(error.localizedDescription)")
-                        }
-                    }
+                // If all else failed, and we are still stuck in .authenticatedButProfileIncomplete,
+                // but we have a Firebase user, this is a tricky state.
+                // Forcing to .authenticated might be too optimistic if the profile truly couldn't be loaded/created.
+                // However, if ensureUserProfileExists was supposed to fix it, and refreshCurrentUser still fails,
+                // it might point to other issues. For now, let's rely on authState being correctly set by AuthService.
+                if !finalAttempt && authViewModel.authState == .authenticatedButProfileIncomplete {
+                    print("LoadingView: Still authenticatedButProfileIncomplete after all attempts. This state should be resolved by AuthService.")
+                    // Consider if any direct action is needed here or if we trust AuthService to eventually resolve.
+                    // Forcing authState = .authenticated directly in the View is generally not recommended.
                 }
-            } catch {
-                print("Error reloading user: \(error.localizedDescription)")
             }
+        } catch {
+            print("LoadingView: Error reloading Firebase user: \(error.localizedDescription)")
+            // If reloading the Firebase user fails, it might indicate a session issue.
+            // Triggering a refresh in AuthViewModel might help reconcile the state.
+            _ = await authViewModel.refreshCurrentUser()
         }
     }
     

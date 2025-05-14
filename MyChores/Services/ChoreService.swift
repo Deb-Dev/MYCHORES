@@ -8,12 +8,40 @@ import Foundation
 import FirebaseFirestore
 import FirebaseAuth
 
+// MARK: - ChoreServiceProtocol
+protocol ChoreServiceProtocol {
+    func createChore(
+        title: String,
+        description: String?,
+        householdId: String,
+        assignedToUserId: String?,
+        createdByUserId: String, // Added
+        dueDate: Date?,
+        pointValue: Int,
+        isRecurring: Bool,
+        recurrenceType: RecurrenceType?,
+        recurrenceInterval: Int?,
+        recurrenceDaysOfWeek: [Int]?,
+        recurrenceDayOfMonth: Int?,
+        recurrenceEndDate: Date?
+    ) async throws -> Chore
+    func fetchChore(withId id: String) async throws -> Chore?
+    func fetchChores(forHouseholdId householdId: String, includeCompleted: Bool) async throws -> [Chore]
+    func fetchChores(forUserId userId: String, includeCompleted: Bool) async throws -> [Chore]
+    func fetchOverdueChores(forHouseholdId householdId: String) async throws -> [Chore]
+    func fetchCompletedChores(byCompleterUserId userId: String) async throws -> [Chore]
+    func updateChore(_ chore: Chore) async throws
+    func completeChore(choreId: String, completedByUserId: String, createNextRecurrence: Bool) async throws -> Int
+    func deleteChore(withId choreId: String) async throws
+    func deleteAllChores(forHouseholdId householdId: String) async throws
+}
+
 /// Service for chore data operations
-class ChoreService {
+class ChoreService: ChoreServiceProtocol {
     // MARK: - Shared Instance
     
     /// Shared instance for singleton access
-    static let shared = ChoreService()
+    static let shared = ChoreService(userService: UserService.shared, notificationService: NotificationService.shared)
     
     // MARK: - Private Properties
     
@@ -25,10 +53,17 @@ class ChoreService {
         return db.collection("chores")
     }
     
+    // MARK: - Dependencies (NEW)
+    private let userService: UserServiceProtocol // NEW
+    private let notificationService: NotificationServiceProtocol // NEW
+    
     // MARK: - Initialization
     
     /// Private initializer to enforce singleton pattern
-    private init() {}
+    private init(userService: UserServiceProtocol, notificationService: NotificationServiceProtocol) {
+        self.userService = userService // NEW
+        self.notificationService = notificationService // NEW
+    }
     
     // MARK: - Chore CRUD Operations
     
@@ -49,13 +84,14 @@ class ChoreService {
     /// - Returns: The created Chore
     func createChore(
         title: String,
-        description: String = "",
+        description: String? = nil,
         householdId: String,
         assignedToUserId: String? = nil,
+        createdByUserId: String, // Added
         dueDate: Date? = nil,
-        pointValue: Int = 1,
+        pointValue: Int,
         isRecurring: Bool = false,
-        recurrenceType: Chore.RecurrenceType? = nil,
+        recurrenceType: RecurrenceType? = nil,
         recurrenceInterval: Int? = nil,
         recurrenceDaysOfWeek: [Int]? = nil,
         recurrenceDayOfMonth: Int? = nil,
@@ -69,7 +105,7 @@ class ChoreService {
         // Create a new chore
         let newChore = Chore(
             title: title,
-            description: description,
+            description: description ?? "",
             householdId: householdId,
             assignedToUserId: assignedToUserId,
             createdByUserId: currentUserId,
@@ -175,6 +211,21 @@ class ChoreService {
         }
     }
     
+    /// Fetch chores completed by a specific user
+    /// - Parameter userId: User ID who completed the chores
+    /// - Returns: Array of completed chores
+    func fetchCompletedChores(byCompleterUserId userId: String) async throws -> [Chore] {
+        let query = choresCollection
+            .whereField("completedByUserId", isEqualTo: userId)
+            .whereField("isCompleted", isEqualTo: true)
+        
+        let querySnapshot = try await query.getDocuments()
+        
+        return querySnapshot.documents.compactMap { document in
+            try? document.data(as: Chore.self)
+        }
+    }
+
     /// Update a chore
     /// - Parameter chore: The updated chore object
     func updateChore(_ chore: Chore) async throws {
@@ -186,7 +237,8 @@ class ChoreService {
         
         // If there's a due date and assignee, update the notification
         if let dueDate = chore.dueDate, let assignedToUserId = chore.assignedToUserId, !chore.isCompleted {
-            NotificationService.shared.scheduleChoreReminder(
+            // MODIFIED: Use injected notificationService
+            self.notificationService.scheduleChoreReminder(
                 choreId: id,
                 title: chore.title,
                 forUserId: assignedToUserId,
@@ -221,7 +273,8 @@ class ChoreService {
         try await updateChore(chore)
         
         // Award points to the user
-        try await UserService.shared.awardPoints(to: completedByUserId, points: chore.pointValue)
+        // MODIFIED: Use injected userService
+        try await self.userService.updateUserPoints(userId: completedByUserId, points: chore.pointValue)
         
         // Check for badges
         try await checkAndAwardBadges(forUserId: completedByUserId)
@@ -233,7 +286,7 @@ class ChoreService {
                     title: nextChore.title,
                     description: nextChore.description,
                     householdId: nextChore.householdId,
-                    assignedToUserId: nextChore.assignedToUserId,
+                    assignedToUserId: nextChore.assignedToUserId, createdByUserId: nextChore.createdByUserId ?? "",
                     dueDate: nextChore.dueDate,
                     pointValue: nextChore.pointValue,
                     isRecurring: nextChore.isRecurring,
@@ -255,7 +308,8 @@ class ChoreService {
         try await choresCollection.document(choreId).delete()
         
         // Cancel any notifications
-        NotificationService.shared.cancelChoreReminder(choreId: choreId)
+        // MODIFIED: Use injected notificationService
+        self.notificationService.cancelChoreReminder(choreId: choreId)
     }
     
     /// Delete all chores for a household
@@ -285,17 +339,20 @@ class ChoreService {
         
         // Check for first chore badge
         if choreCount >= 1 {
-            _ = try await UserService.shared.awardBadge(to: userId, badgeKey: "first_chore")
+            // MODIFIED: Use injected userService
+            _ = try await self.userService.awardBadge(to: userId, badgeKey: "first_chore")
         }
         
         // Check for 10 chores badge
         if choreCount >= 10 {
-            _ = try await UserService.shared.awardBadge(to: userId, badgeKey: "ten_chores")
+            // MODIFIED: Use injected userService
+            _ = try await self.userService.awardBadge(to: userId, badgeKey: "ten_chores")
         }
         
         // Check for 50 chores badge
         if choreCount >= 50 {
-            _ = try await UserService.shared.awardBadge(to: userId, badgeKey: "fifty_chores")
+            // MODIFIED: Use injected userService
+            _ = try await self.userService.awardBadge(to: userId, badgeKey: "fifty_chores")
         }
     }
 }

@@ -33,18 +33,32 @@ class HouseholdViewModel: ObservableObject {
     // MARK: - Private Properties
     
     /// Household service instance
-    private let householdService = HouseholdService.shared
+    private let householdService: HouseholdServiceProtocol
     
     /// User service instance
-    private let userService = UserService.shared
+    private let userService: UserServiceProtocol
+
+    /// Auth service instance
+    private let authService: AuthServiceProtocol
     
     // MARK: - Initialization
     
-    init(selectedHouseholdId: String? = nil) {
+    init(selectedHouseholdId: String? = nil, householdService: HouseholdServiceProtocol = HouseholdService.shared, userService: UserServiceProtocol = UserService.shared, authService: AuthServiceProtocol = AuthService.shared) {
+        self.householdService = householdService
+        self.userService = userService
+        self.authService = authService
+
         if let householdId = selectedHouseholdId {
             fetchHousehold(id: householdId)
         } else {
-            loadHouseholds()
+            // Potentially load households or set a default state
+            loadHouseholds() 
+        }
+        // Observe current user changes from AuthService to update local currentUser
+        // This requires AuthService to be an ObservableObject and currentUser to be @Published
+        // For simplicity, assuming direct access or a separate mechanism to update currentUser
+        Task {
+            self.currentUser = try? await self.userService.fetchUser(withId: self.authService.getCurrentUserId() ?? "")
         }
     }
     
@@ -52,8 +66,9 @@ class HouseholdViewModel: ObservableObject {
     
     /// Load all households for the current user
     func loadHouseholds() {
-        guard let userId = AuthService.shared.getCurrentUserId() else {
-            errorMessage = "Not signed in"
+        guard let userId = authService.getCurrentUserId() else {
+            errorMessage = "User not logged in."
+            isLoading = false
             return
         }
         
@@ -62,23 +77,19 @@ class HouseholdViewModel: ObservableObject {
         
         Task {
             do {
-                let fetchedHouseholds = try await householdService.fetchHouseholds(forUserId: userId)
-                
-                // Fetch current user data
-                if let currentUserData = try await userService.fetchUser(withId: userId) {
-                    DispatchQueue.main.async {
-                        self.households = fetchedHouseholds
-                        self.currentUser = currentUserData
-                        self.isLoading = false
+                let households = try await householdService.fetchHouseholds(forUserId: userId)
+                await MainActor.run {
+                    self.households = households
+                    if selectedHousehold == nil, let firstHousehold = households.first {
+                        self.selectedHousehold = firstHousehold
+                        if let currentSelectedHousehold = self.selectedHousehold {
+                             self.loadHouseholdMembers(household: currentSelectedHousehold)
+                        }
                     }
-                } else {
-                    DispatchQueue.main.async {
-                        self.households = fetchedHouseholds
-                        self.isLoading = false
-                    }
+                    self.isLoading = false
                 }
             } catch {
-                DispatchQueue.main.async {
+                await MainActor.run {
                     self.errorMessage = "Failed to load households: \(error.localizedDescription)"
                     self.isLoading = false
                 }
@@ -93,11 +104,9 @@ class HouseholdViewModel: ObservableObject {
     func fetchHousehold(id: String, completion: ((Bool) -> Void)? = nil) {
         // Validate the household ID
         guard !id.isEmpty else {
-            DispatchQueue.main.async {
-                self.errorMessage = "Household ID cannot be empty"
-                self.isLoading = false
-                completion?(false)
-            }
+            errorMessage = "Household ID cannot be empty."
+            isLoading = false
+            completion?(false)
             return
         }
         
@@ -106,22 +115,18 @@ class HouseholdViewModel: ObservableObject {
         
         Task {
             do {
-                if let household = try await householdService.fetchHousehold(withId: id) {
-                    DispatchQueue.main.async {
-                        self.selectedHousehold = household
-                        self.loadHouseholdMembers(household: household)
-                        completion?(true)
+                let household = try await householdService.fetchHousehold(withId: id)
+                await MainActor.run {
+                    self.selectedHousehold = household
+                    if let currentSelectedHousehold = self.selectedHousehold {
+                        self.loadHouseholdMembers(household: currentSelectedHousehold)
                     }
-                } else {
-                    DispatchQueue.main.async {
-                        self.errorMessage = "Household not found"
-                        self.isLoading = false
-                        completion?(false)
-                    }
+                    self.isLoading = false
+                    completion?(household != nil)
                 }
             } catch {
-                DispatchQueue.main.async {
-                    self.errorMessage = "Failed to load household: \(error.localizedDescription)"
+                await MainActor.run {
+                    self.errorMessage = "Failed to fetch household: \(error.localizedDescription)"
                     self.isLoading = false
                     completion?(false)
                 }
@@ -134,8 +139,9 @@ class HouseholdViewModel: ObservableObject {
     ///   - name: Household name
     ///   - completion: Optional completion handler with success boolean
     func createHousehold(name: String, completion: ((Bool) -> Void)? = nil) {
-        guard let userId = AuthService.shared.getCurrentUserId() else {
-            errorMessage = "Not signed in"
+        guard let userId = authService.getCurrentUserId() else {
+            errorMessage = "User not logged in."
+            isLoading = false
             completion?(false)
             return
         }
@@ -145,16 +151,18 @@ class HouseholdViewModel: ObservableObject {
         
         Task {
             do {
-                let household = try await householdService.createHousehold(name: name, ownerUserId: userId)
-                
-                DispatchQueue.main.async {
-                    self.households.append(household)
-                    self.selectedHousehold = household
+                let newHousehold = try await householdService.createHousehold(name: name, ownerUserId: userId)
+                await MainActor.run {
+                    self.households.append(newHousehold)
+                    self.selectedHousehold = newHousehold // Optionally select the new household
+                    if let currentSelectedHousehold = self.selectedHousehold {
+                        self.loadHouseholdMembers(household: currentSelectedHousehold)
+                    }
                     self.isLoading = false
                     completion?(true)
                 }
             } catch {
-                DispatchQueue.main.async {
+                await MainActor.run {
                     self.errorMessage = "Failed to create household: \(error.localizedDescription)"
                     self.isLoading = false
                     completion?(false)
@@ -168,8 +176,9 @@ class HouseholdViewModel: ObservableObject {
     ///   - inviteCode: Household invite code
     ///   - completion: Optional completion handler with success boolean
     func joinHousehold(inviteCode: String, completion: ((Bool) -> Void)? = nil) {
-        guard let userId = AuthService.shared.getCurrentUserId() else {
-            errorMessage = "You need to be signed in to join a household"
+        guard let userId = authService.getCurrentUserId() else {
+            errorMessage = "User not logged in."
+            isLoading = false
             completion?(false)
             return
         }
@@ -179,79 +188,26 @@ class HouseholdViewModel: ObservableObject {
         
         Task {
             do {
-                // Find the household
-                let household: Household?
-                do {
-                    household = try await householdService.findHousehold(byInviteCode: inviteCode)
-                } catch {
-                    print("Error finding household: \(error.localizedDescription)")
-                    DispatchQueue.main.async {
-                        self.errorMessage = "We couldn't find that household: \(error.localizedDescription)"
+                guard let householdToJoin = try await householdService.findHousehold(byInviteCode: inviteCode) else {
+                    await MainActor.run {
+                        self.errorMessage = "Invalid invite code."
                         self.isLoading = false
                         completion?(false)
                     }
                     return
                 }
+                try await householdService.addMember(userId: userId, toHouseholdId: householdToJoin.id ?? "")
+                try await userService.addUserToHousehold(userId: userId, householdId: householdToJoin.id ?? "")
                 
-                // Check if household was found
-                guard let household = household else {
-                    DispatchQueue.main.async {
-                        self.errorMessage = "We couldn't find a household with that invite code. Please check the code and try again."
-                        self.isLoading = false
-                        completion?(false)
-                    }
-                    return
-                }
-                
-                // Make sure user isn't already a member
-                if let id = household.id, household.memberUserIds.contains(userId) {
-                    DispatchQueue.main.async {
-                        self.errorMessage = "You're already a member of this household"
-                        self.isLoading = false
-                        completion?(false)
-                    }
-                    return
-                }
-                
-                // Add user to household
-                if let id = household.id {
-                    do {
-                        try await householdService.addMember(userId: userId, toHouseholdId: id)
-                        
-                        // Reload the households
-                        var updatedHouseholds: [Household] = []
-                        do {
-                            updatedHouseholds = try await householdService.fetchHouseholds(forUserId: userId)
-                        } catch {
-                            print("Error fetching updated households: \(error.localizedDescription)")
-                            // Continue anyway since the user was added to the household
-                        }
-                        
-                        DispatchQueue.main.async {
-                            self.households = updatedHouseholds
-                            self.selectedHousehold = household
-                            self.isLoading = false
-                            completion?(true)
-                        }
-                    } catch {
-                        print("Failed to add member: \(error.localizedDescription)")
-                        DispatchQueue.main.async {
-                            self.errorMessage = "We couldn't add you to the household. The server says: \(error.localizedDescription)"
-                            self.isLoading = false
-                            completion?(false)
-                        }
-                    }
-                } else {
-                    DispatchQueue.main.async {
-                        self.errorMessage = "The household ID is missing. Please try again or contact support."
-                        self.isLoading = false
-                        completion?(false)
-                    }
+                await MainActor.run {
+                    // Refresh households list or add the joined household
+                    self.loadHouseholds() 
+                    self.isLoading = false
+                    completion?(true)
                 }
             } catch {
-                print("joinHousehold error: \(error.localizedDescription)")
-                DispatchQueue.main.async {
-                    self.errorMessage = "Something went wrong while trying to join the household: \(error.localizedDescription)"
+                await MainActor.run {
+                    self.errorMessage = "Failed to join household: \(error.localizedDescription)"
                     self.isLoading = false
                     completion?(false)
                 }
@@ -270,23 +226,19 @@ class HouseholdViewModel: ObservableObject {
         Task {
             do {
                 try await householdService.updateHouseholdName(householdId: householdId, newName: newName)
-                
-                // Reload the household
-                if let household = try await householdService.fetchHousehold(withId: householdId) {
-                    DispatchQueue.main.async {
-                        self.selectedHousehold = household
-                        
-                        // Update in the households list too
-                        if let index = self.households.firstIndex(where: { $0.id == householdId }) {
-                            self.households[index] = household
-                        }
-                        
-                        self.isLoading = false
+                await MainActor.run {
+                    // Refresh the specific household or the list
+                    if let index = self.households.firstIndex(where: { $0.id == householdId }) {
+                        self.households[index].name = newName
                     }
+                    if self.selectedHousehold?.id == householdId {
+                        self.selectedHousehold?.name = newName
+                    }
+                    self.isLoading = false
                 }
             } catch {
-                DispatchQueue.main.async {
-                    self.errorMessage = "Failed to update household: \(error.localizedDescription)"
+                await MainActor.run {
+                    self.errorMessage = "Failed to update household name: \(error.localizedDescription)"
                     self.isLoading = false
                 }
             }
@@ -298,47 +250,35 @@ class HouseholdViewModel: ObservableObject {
     ///   - householdId: Household ID
     ///   - completion: Optional completion handler with success boolean
     func leaveHousehold(householdId: String, completion: ((Bool) -> Void)? = nil) {
-        guard let userId = AuthService.shared.getCurrentUserId() else {
-            errorMessage = "Not signed in"
+        guard let userId = authService.getCurrentUserId() else {
+            errorMessage = "User not logged in."
+            isLoading = false
             completion?(false)
             return
         }
-        
+
         isLoading = true
         errorMessage = nil
         
         Task {
             do {
-                // Get the household
-                guard let household = try await householdService.fetchHousehold(withId: householdId) else {
-                    throw NSError(domain: "HouseholdViewModel", code: 1, userInfo: [NSLocalizedDescriptionKey: "Household not found"])
-                }
-                
-                // Check if user is the owner
-                if household.ownerUserId == userId {
-                    // Delete the household if user is the owner
-                    try await householdService.deleteHousehold(householdId: householdId, userId: userId)
-                } else {
-                    // Just remove the user from the household
-                    try await householdService.removeMember(userId: userId, fromHouseholdId: householdId)
-                }
-                
-                // Reload households
-                let updatedHouseholds = try await householdService.fetchHouseholds(forUserId: userId)
-                
-                DispatchQueue.main.async {
-                    self.households = updatedHouseholds
-                    
-                    // Clear selected household if it was the one we left
+                try await householdService.removeMember(userId: userId, fromHouseholdId: householdId)
+                try await userService.removeUserFromHousehold(userId: userId, householdId: householdId)
+                await MainActor.run {
+                    self.households.removeAll { $0.id == householdId }
                     if self.selectedHousehold?.id == householdId {
-                        self.selectedHousehold = nil
+                        self.selectedHousehold = self.households.first
+                        if let currentSelectedHousehold = self.selectedHousehold {
+                           self.loadHouseholdMembers(household: currentSelectedHousehold)
+                        } else {
+                            self.householdMembers = []
+                        }
                     }
-                    
                     self.isLoading = false
                     completion?(true)
                 }
             } catch {
-                DispatchQueue.main.async {
+                await MainActor.run {
                     self.errorMessage = "Failed to leave household: \(error.localizedDescription)"
                     self.isLoading = false
                     completion?(false)
@@ -351,11 +291,7 @@ class HouseholdViewModel: ObservableObject {
     /// - Parameter household: Household to check
     /// - Returns: Boolean indicating ownership
     func isCurrentUserOwner(of household: Household) -> Bool {
-        guard let userId = AuthService.shared.getCurrentUserId() else {
-            return false
-        }
-        
-        return household.ownerUserId == userId
+        return household.ownerUserId == authService.getCurrentUserId()
     }
     
     // MARK: - Member Management
@@ -363,35 +299,21 @@ class HouseholdViewModel: ObservableObject {
     /// Load members of a household
     /// - Parameter household: Household
     private func loadHouseholdMembers(household: Household) {
-        print("🔍 Loading household members for household: \(household.name)")
-        
+        guard let householdId = household.id else {
+            self.householdMembers = []
+            return
+        }
+        isLoading = true
         Task {
             do {
-                if !household.memberUserIds.isEmpty {
-                    // Use the more reliable method from UserService
-                    let members = try await userService.getAllHouseholdMembers(forHouseholdId: household.id ?? "")
-                    
-                    // Debug information
-                    print("✅ Fetched \(members.count) household members")
-                    for member in members {
-                        print("👤 Member: \(member.name) (ID: \(member.id ?? "nil"), StableID: \(member.stableId))")
-                    }
-                    
-                    await MainActor.run {
-                        self.householdMembers = members
-                        self.isLoading = false
-                    }
-                } else {
-                    print("⚠️ Household has no members")
-                    await MainActor.run {
-                        self.householdMembers = []
-                        self.isLoading = false
-                    }
+                let members = try await userService.fetchUsers(inHousehold: householdId)
+                await MainActor.run {
+                    self.householdMembers = members
+                    self.isLoading = false
                 }
             } catch {
-                print("❌ Error loading household members: \(error.localizedDescription)")
                 await MainActor.run {
-                    self.errorMessage = "Failed to load members: \(error.localizedDescription)"
+                    self.errorMessage = "Failed to load household members: \(error.localizedDescription)"
                     self.isLoading = false
                 }
             }
@@ -403,34 +325,32 @@ class HouseholdViewModel: ObservableObject {
     ///   - userId: User ID to remove
     ///   - completion: Optional completion handler with success boolean
     func removeMember(userId: String, completion: ((Bool) -> Void)? = nil) {
-        guard let household = selectedHousehold, let householdId = household.id else {
-            errorMessage = "No household selected"
+        guard let householdId = selectedHousehold?.id else {
+            errorMessage = "No household selected."
             completion?(false)
             return
         }
-        
+        // Ensure current user is owner before removing another member
+        guard selectedHousehold?.ownerUserId == authService.getCurrentUserId() else {
+            errorMessage = "Only the household owner can remove members."
+            completion?(false)
+            return
+        }
+
         isLoading = true
         errorMessage = nil
-        
+
         Task {
             do {
                 try await householdService.removeMember(userId: userId, fromHouseholdId: householdId)
-                
-                // Reload the household
-                if let updatedHousehold = try await householdService.fetchHousehold(withId: householdId) {
-                    DispatchQueue.main.async {
-                        self.selectedHousehold = updatedHousehold
-                        self.loadHouseholdMembers(household: updatedHousehold)
-                        completion?(true)
-                    }
-                } else {
-                    DispatchQueue.main.async {
-                        self.isLoading = false
-                        completion?(false)
-                    }
+                try await userService.removeUserFromHousehold(userId: userId, householdId: householdId)
+                await MainActor.run {
+                    self.householdMembers.removeAll { $0.id == userId }
+                    self.isLoading = false
+                    completion?(true)
                 }
             } catch {
-                DispatchQueue.main.async {
+                await MainActor.run {
                     self.errorMessage = "Failed to remove member: \(error.localizedDescription)"
                     self.isLoading = false
                     completion?(false)

@@ -27,7 +27,16 @@ struct ChoreListView: View {
                         // Complete action for incomplete chores
                         if !chore.isCompleted {
                             Button {
-                                viewModel.completeChore(choreId: chore.id ?? "")
+                                // Get the current user ID from the viewModel's authService
+                                if (viewModel.authService.getCurrentUserId()) != nil {
+                                    Task{
+                                        viewModel.completeChore(choreId: chore.id ?? "")
+                                    }
+                                } else {
+                                    // Handle the case where the user ID is not available (e.g., show an error)
+                                    print("Error: Could not get current user ID to complete chore.")
+                                    // Optionally, you could set an error message on the viewModel to display to the user
+                                }
                             } label: {
                                 Label("Complete", systemImage: "checkmark.circle")
                             }
@@ -36,7 +45,9 @@ struct ChoreListView: View {
                         
                         // Delete action for all chores
                         Button(role: .destructive) {
-                            viewModel.deleteChore(choreId: chore.id ?? "")
+                            Task{
+                                await viewModel.deleteChore(choreId: chore.id ?? "")
+                            }
                         } label: {
                             Label("Delete", systemImage: "trash")
                         }

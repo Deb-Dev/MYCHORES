@@ -6,6 +6,7 @@
 
 import Foundation
 import Combine
+import FirebaseFirestore // Added import
 
 /// ViewModel for leaderboard-related views
 class LeaderboardViewModel: ObservableObject {
@@ -32,7 +33,7 @@ class LeaderboardViewModel: ObservableObject {
     private let householdId: String
     
     /// User service instance
-    private let userService = UserService.shared
+    private let userService: UserServiceProtocol // Changed to protocol
     
     // MARK: - Leaderboard Periods
     
@@ -46,8 +47,9 @@ class LeaderboardViewModel: ObservableObject {
     
     // MARK: - Initialization
     
-    init(householdId: String) {
+    init(householdId: String, userService: UserServiceProtocol = UserService.shared) { // Added protocol injection
         self.householdId = householdId
+        self.userService = userService
         loadLeaderboards()
     }
     
