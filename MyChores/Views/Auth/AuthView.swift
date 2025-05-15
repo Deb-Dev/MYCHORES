@@ -9,6 +9,7 @@ import SwiftUI
 /// Authentication container view that handles switching between sign in and sign up
 struct AuthView: View {
     @State private var currentView: AuthViewType = .signIn
+    @State private var slideDirection: SlideDirection = .right
     
     enum AuthViewType {
         case signIn
@@ -16,29 +17,84 @@ struct AuthView: View {
         case forgotPassword
     }
     
+    enum SlideDirection {
+        case left
+        case right
+    }
+    
     var body: some View {
         NavigationStack {
-            Group {
-                switch currentView {
-                case .signIn:
-                    SignInView(
-                        onSignUpTapped: { currentView = .signUp },
-                        onForgotPasswordTapped: { currentView = .forgotPassword }
+            ZStack {
+                // Add a subtle background pattern
+                Color.white
+                    .overlay(
+                        Image(systemName: "checkmark.circle")
+                            .font(.system(size: 200))
+                            .foregroundColor(Theme.Colors.primary.opacity(0.03))
+                            .rotationEffect(Angle(degrees: -15))
+                            .offset(x: 50, y: -200)
                     )
-                    
-                case .signUp:
-                    SignUpView(
-                        onSignInTapped: { currentView = .signIn }
-                    )
-                    
-                case .forgotPassword:
-                    ForgotPasswordView(
-                        onBackTapped: { currentView = .signIn }
-                    )
+                    .ignoresSafeArea()
+                
+                // Current auth view
+                Group {
+                    switch currentView {
+                    case .signIn:
+                        SignInView(
+                            onSignUpTapped: {
+                                slideDirection = .left
+                                withAnimation(.easeInOut(duration: 0.3)) {
+                                    currentView = .signUp
+                                }
+                            },
+                            onForgotPasswordTapped: {
+                                slideDirection = .left
+                                withAnimation(.easeInOut(duration: 0.3)) {
+                                    currentView = .forgotPassword
+                                }
+                            }
+                        )
+                        .transition(slideTransition(for: slideDirection))
+                        
+                    case .signUp:
+                        SignUpView(
+                            onSignInTapped: {
+                                slideDirection = .right
+                                withAnimation(.easeInOut(duration: 0.3)) {
+                                    currentView = .signIn
+                                }
+                            }
+                        )
+                        .transition(slideTransition(for: slideDirection))
+                        
+                    case .forgotPassword:
+                        ForgotPasswordView(
+                            onBackTapped: {
+                                slideDirection = .right
+                                withAnimation(.easeInOut(duration: 0.3)) {
+                                    currentView = .signIn
+                                }
+                            }
+                        )
+                        .transition(slideTransition(for: slideDirection))
+                    }
                 }
             }
-            .transition(.opacity.combined(with: .move(edge: .trailing)))
-            .animation(.easeInOut, value: currentView)
+        }
+    }
+    
+    private func slideTransition(for direction: SlideDirection) -> AnyTransition {
+        switch direction {
+        case .left:
+            return .asymmetric(
+                insertion: .move(edge: .trailing).combined(with: .opacity),
+                removal: .move(edge: .leading).combined(with: .opacity)
+            )
+        case .right:
+            return .asymmetric(
+                insertion: .move(edge: .leading).combined(with: .opacity),
+                removal: .move(edge: .trailing).combined(with: .opacity)
+            )
         }
     }
 }
@@ -52,41 +108,88 @@ struct SignInView: View {
     @State private var rememberMe: Bool = false
     @State private var isShowingError = false
     
+    // Animation states
+    @State private var logoAppeared = false
+    @State private var fieldsAppeared = false
+    @State private var buttonAppeared = false
+    
     var onSignUpTapped: () -> Void
     var onForgotPasswordTapped: () -> Void
     
     var body: some View {
         ZStack {
+            // Background with subtle gradient overlay
             Theme.Colors.background.ignoresSafeArea()
+                .overlay(
+                    LinearGradient(
+                        gradient: Gradient(colors: [
+                            Theme.Colors.primary.opacity(0.05),
+                            Theme.Colors.background
+                        ]),
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
             
             ScrollView {
                 VStack(spacing: 24) {
-                    // App logo and title
-                    VStack(spacing: 8) {
+                    // App logo and title with animation
+                    VStack(spacing: 12) {
                         Image(systemName: "checkmark.circle.fill")
-                            .font(.system(size: 60))
+                            .font(.system(size: 70))
                             .foregroundColor(Theme.Colors.primary)
+                            .background(
+                                Circle()
+                                    .fill(Theme.Colors.primary.opacity(0.1))
+                                    .frame(width: 100, height: 100)
+                            )
+                            .scaleEffect(logoAppeared ? 1.0 : 0.5)
+                            .opacity(logoAppeared ? 1.0 : 0.0)
                         
                         Text("MyChores")
                             .font(Theme.Typography.titleFontSystem)
                             .foregroundColor(Theme.Colors.text)
+                            .opacity(logoAppeared ? 1.0 : 0.0)
+                            .offset(y: logoAppeared ? 0 : 10)
                         
                         Text("Welcome back!")
                             .font(Theme.Typography.bodyFontSystem)
                             .foregroundColor(Theme.Colors.textSecondary)
+                            .opacity(logoAppeared ? 1.0 : 0.0)
+                            .offset(y: logoAppeared ? 0 : 10)
                     }
                     .padding(.vertical, 40)
+                    .onAppear {
+                        withAnimation(.spring(response: 0.6, dampingFraction: 0.8, blendDuration: 0).delay(0.1)) {
+                            logoAppeared = true
+                        }
+                        withAnimation(.easeOut(duration: 0.5).delay(0.3)) {
+                            fieldsAppeared = true
+                        }
+                        withAnimation(.easeOut(duration: 0.5).delay(0.5)) {
+                            buttonAppeared = true
+                        }
+                    }
                     
-                    // Email field
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Email")
-                            .font(Theme.Typography.captionFontSystem)
-                            .foregroundColor(Theme.Colors.textSecondary)
-                        
-                        TextField("Enter your email", text: $email)
-                            .keyboardType(.emailAddress)
-                            .autocapitalization(.none)
-                            .disableAutocorrection(true)
+                    // Email and password fields with animation
+                    VStack(spacing: 20) {
+                        // Email field
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Email")
+                                .font(Theme.Typography.captionFontSystem)
+                                .foregroundColor(Theme.Colors.textSecondary)
+                            
+                            HStack {
+                                Image(systemName: "envelope.fill")
+                                    .foregroundColor(Theme.Colors.primary.opacity(0.7))
+                                    .font(.system(size: 16))
+                                    .frame(width: 24)
+                                
+                                TextField("Enter your email", text: $email)
+                                    .keyboardType(.emailAddress)
+                                    .autocapitalization(.none)
+                                    .disableAutocorrection(true)
+                            }
                             .padding()
                             .background(Theme.Colors.cardBackground)
                             .cornerRadius(Theme.Dimensions.cornerRadiusMedium)
@@ -94,15 +197,23 @@ struct SignInView: View {
                                 RoundedRectangle(cornerRadius: Theme.Dimensions.cornerRadiusMedium)
                                     .stroke(Color.gray.opacity(0.2), lineWidth: 1)
                             )
-                    }
-                    
-                    // Password field
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Password")
-                            .font(Theme.Typography.captionFontSystem)
-                            .foregroundColor(Theme.Colors.textSecondary)
+                            .shadow(color: Color.black.opacity(0.03), radius: 8, x: 0, y: 4)
+                        }
                         
-                        SecureField("Enter your password", text: $password)
+                        // Password field
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Password")
+                                .font(Theme.Typography.captionFontSystem)
+                                .foregroundColor(Theme.Colors.textSecondary)
+                            
+                            HStack {
+                                Image(systemName: "lock.fill")
+                                    .foregroundColor(Theme.Colors.primary.opacity(0.7))
+                                    .font(.system(size: 16))
+                                    .frame(width: 24)
+                                
+                                SecureField("Enter your password", text: $password)
+                            }
                             .padding()
                             .background(Theme.Colors.cardBackground)
                             .cornerRadius(Theme.Dimensions.cornerRadiusMedium)
@@ -110,7 +221,11 @@ struct SignInView: View {
                                 RoundedRectangle(cornerRadius: Theme.Dimensions.cornerRadiusMedium)
                                     .stroke(Color.gray.opacity(0.2), lineWidth: 1)
                             )
+                            .shadow(color: Color.black.opacity(0.03), radius: 8, x: 0, y: 4)
+                        }
                     }
+                    .opacity(fieldsAppeared ? 1.0 : 0.0)
+                    .offset(y: fieldsAppeared ? 0 : 20)
                     
                     // Remember me and forgot password row
                     HStack {
@@ -125,10 +240,13 @@ struct SignInView: View {
                             Text("Forgot Password?")
                                 .font(Theme.Typography.captionFontSystem)
                                 .foregroundColor(Theme.Colors.primary)
+                                .underline()
                         }
                     }
+                    .opacity(fieldsAppeared ? 1.0 : 0.0)
+                    .offset(y: fieldsAppeared ? 0 : 20)
                     
-                    // Sign in button
+                    // Sign in button with animation
                     Button(action: signIn) {
                         if authViewModel.isLoading {
                             ProgressView()
@@ -137,17 +255,31 @@ struct SignInView: View {
                                 .frame(maxWidth: .infinity)
                                 .padding()
                         } else {
-                            Text("Sign In")
-                                .font(Theme.Typography.bodyFontSystem.bold())
-                                .foregroundColor(.white)
-                                .frame(maxWidth: .infinity)
-                                .padding()
+                            HStack {
+                                Text("Sign In")
+                                    .font(Theme.Typography.bodyFontSystem.bold())
+                                    .foregroundColor(.white)
+                                
+                                Image(systemName: "arrow.right")
+                                    .font(.system(size: 16, weight: .semibold))
+                                    .foregroundColor(.white)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding()
                         }
                     }
-                    .background(Theme.Colors.primary)
+                    .background(
+                        LinearGradient(
+                            gradient: Gradient(colors: [Theme.Colors.primary, Theme.Colors.primary.opacity(0.8)]),
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
                     .cornerRadius(Theme.Dimensions.cornerRadiusMedium)
+                    .shadow(color: Theme.Colors.primary.opacity(0.3), radius: 10, x: 0, y: 5)
                     .disabled(email.isEmpty || password.isEmpty || authViewModel.isLoading)
-                    .opacity(email.isEmpty || password.isEmpty || authViewModel.isLoading ? 0.7 : 1.0)
+                    .opacity(buttonAppeared ? (email.isEmpty || password.isEmpty || authViewModel.isLoading ? 0.7 : 1.0) : 0.0)
+                    .offset(y: buttonAppeared ? 0 : 20)
                     .padding(.top, 16)
                     
                     // Sign up link
@@ -163,6 +295,8 @@ struct SignInView: View {
                         }
                     }
                     .padding(.top, 16)
+                    .opacity(buttonAppeared ? 1.0 : 0.0)
+                    .offset(y: buttonAppeared ? 0 : 20)
                 }
                 .padding(.horizontal, 24)
                 .padding(.vertical, 16)
@@ -195,14 +329,31 @@ struct SignInView: View {
 struct CheckboxToggleStyle: ToggleStyle {
     func makeBody(configuration: Configuration) -> some View {
         HStack {
-            Image(systemName: configuration.isOn ? "checkmark.square.fill" : "square")
-                .foregroundColor(configuration.isOn ? Theme.Colors.primary : Theme.Colors.textSecondary)
-                .font(.system(size: 20, weight: .medium))
-                .onTapGesture {
+            ZStack {
+                RoundedRectangle(cornerRadius: 4)
+                    .stroke(configuration.isOn ? Theme.Colors.primary : Color.gray.opacity(0.4), lineWidth: 1.5)
+                    .frame(width: 20, height: 20)
+                    .background(
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(configuration.isOn ? Theme.Colors.primary.opacity(0.1) : Color.clear)
+                    )
+                
+                if configuration.isOn {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundColor(Theme.Colors.primary)
+                        .transition(.scale.combined(with: .opacity))
+                }
+            }
+            .contentShape(Rectangle())
+            .onTapGesture {
+                withAnimation(.spring(response: 0.2, dampingFraction: 0.7)) {
                     configuration.isOn.toggle()
                 }
+            }
             
             configuration.label
+                .padding(.leading, 4)
         }
     }
 }
@@ -218,52 +369,85 @@ struct SignUpView: View {
     @State private var agreeToTerms: Bool = false
     @State private var passwordsMatch: Bool = true
     
+    // Animation states
+    @State private var headerAppeared = false
+    @State private var fieldsAppeared = false
+    @State private var buttonAppeared = false
+    
     var onSignInTapped: () -> Void
     
     var body: some View {
         ZStack {
+            // Background with subtle gradient overlay
             Theme.Colors.background.ignoresSafeArea()
+                .overlay(
+                    LinearGradient(
+                        gradient: Gradient(colors: [
+                            Theme.Colors.secondary.opacity(0.05),
+                            Theme.Colors.background
+                        ]),
+                        startPoint: .topTrailing,
+                        endPoint: .bottomLeading
+                    )
+                )
             
             ScrollView {
                 VStack(spacing: 20) {
-                    // App logo and title
-                    VStack(spacing: 8) {
-                        Image(systemName: "checkmark.circle.fill")
+                    // App logo and title with animation
+                    VStack(spacing: 12) {
+                        Image(systemName: "person.crop.circle.badge.plus")
                             .font(.system(size: 60))
                             .foregroundColor(Theme.Colors.primary)
+                            .background(
+                                Circle()
+                                    .fill(Theme.Colors.primary.opacity(0.1))
+                                    .frame(width: 100, height: 100)
+                            )
+                            .scaleEffect(headerAppeared ? 1.0 : 0.5)
+                            .opacity(headerAppeared ? 1.0 : 0.0)
                         
                         Text("Create Account")
                             .font(Theme.Typography.titleFontSystem)
                             .foregroundColor(Theme.Colors.text)
+                            .opacity(headerAppeared ? 1.0 : 0.0)
+                            .offset(y: headerAppeared ? 0 : 10)
+                        
+                        Text("Join MyChores and start organizing")
+                            .font(Theme.Typography.bodyFontSystem)
+                            .foregroundColor(Theme.Colors.textSecondary)
+                            .multilineTextAlignment(.center)
+                            .opacity(headerAppeared ? 1.0 : 0.0)
+                            .offset(y: headerAppeared ? 0 : 10)
                     }
                     .padding(.vertical, 24)
-                    
-                    // Name field
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Name")
-                            .font(Theme.Typography.captionFontSystem)
-                            .foregroundColor(Theme.Colors.textSecondary)
-                        
-                        TextField("Enter your name", text: $name)
-                            .padding()
-                            .background(Theme.Colors.cardBackground)
-                            .cornerRadius(Theme.Dimensions.cornerRadiusMedium)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: Theme.Dimensions.cornerRadiusMedium)
-                                    .stroke(Color.gray.opacity(0.2), lineWidth: 1)
-                            )
+                    .onAppear {
+                        withAnimation(.spring(response: 0.6, dampingFraction: 0.8, blendDuration: 0).delay(0.1)) {
+                            headerAppeared = true
+                        }
+                        withAnimation(.easeOut(duration: 0.5).delay(0.3)) {
+                            fieldsAppeared = true
+                        }
+                        withAnimation(.easeOut(duration: 0.5).delay(0.5)) {
+                            buttonAppeared = true
+                        }
                     }
                     
-                    // Email field
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Email")
-                            .font(Theme.Typography.captionFontSystem)
-                            .foregroundColor(Theme.Colors.textSecondary)
-                        
-                        TextField("Enter your email", text: $email)
-                            .keyboardType(.emailAddress)
-                            .autocapitalization(.none)
-                            .disableAutocorrection(true)
+                    // Form fields with animation
+                    VStack(spacing: 16) {
+                        // Name field
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Name")
+                                .font(Theme.Typography.captionFontSystem)
+                                .foregroundColor(Theme.Colors.textSecondary)
+                            
+                            HStack {
+                                Image(systemName: "person.fill")
+                                    .foregroundColor(Theme.Colors.primary.opacity(0.7))
+                                    .font(.system(size: 16))
+                                    .frame(width: 24)
+                                
+                                TextField("Enter your name", text: $name)
+                            }
                             .padding()
                             .background(Theme.Colors.cardBackground)
                             .cornerRadius(Theme.Dimensions.cornerRadiusMedium)
@@ -271,15 +455,26 @@ struct SignUpView: View {
                                 RoundedRectangle(cornerRadius: Theme.Dimensions.cornerRadiusMedium)
                                     .stroke(Color.gray.opacity(0.2), lineWidth: 1)
                             )
-                    }
-                    
-                    // Password field
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Password")
-                            .font(Theme.Typography.captionFontSystem)
-                            .foregroundColor(Theme.Colors.textSecondary)
+                            .shadow(color: Color.black.opacity(0.03), radius: 8, x: 0, y: 4)
+                        }
                         
-                        SecureField("Create a password", text: $password)
+                        // Email field
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Email")
+                                .font(Theme.Typography.captionFontSystem)
+                                .foregroundColor(Theme.Colors.textSecondary)
+                            
+                            HStack {
+                                Image(systemName: "envelope.fill")
+                                    .foregroundColor(Theme.Colors.primary.opacity(0.7))
+                                    .font(.system(size: 16))
+                                    .frame(width: 24)
+                                
+                                TextField("Enter your email", text: $email)
+                                    .keyboardType(.emailAddress)
+                                    .autocapitalization(.none)
+                                    .disableAutocorrection(true)
+                            }
                             .padding()
                             .background(Theme.Colors.cardBackground)
                             .cornerRadius(Theme.Dimensions.cornerRadiusMedium)
@@ -287,18 +482,50 @@ struct SignUpView: View {
                                 RoundedRectangle(cornerRadius: Theme.Dimensions.cornerRadiusMedium)
                                     .stroke(Color.gray.opacity(0.2), lineWidth: 1)
                             )
+                            .shadow(color: Color.black.opacity(0.03), radius: 8, x: 0, y: 4)
+                        }
+                        
+                        // Password field
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Password")
+                                .font(Theme.Typography.captionFontSystem)
+                                .foregroundColor(Theme.Colors.textSecondary)
+                            
+                            HStack {
+                                Image(systemName: "lock.fill")
+                                    .foregroundColor(Theme.Colors.primary.opacity(0.7))
+                                    .font(.system(size: 16))
+                                    .frame(width: 24)
+                                
+                                SecureField("Create a password", text: $password)
+                            }
+                            .padding()
+                            .background(Theme.Colors.cardBackground)
+                            .cornerRadius(Theme.Dimensions.cornerRadiusMedium)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: Theme.Dimensions.cornerRadiusMedium)
+                                    .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+                            )
+                            .shadow(color: Color.black.opacity(0.03), radius: 8, x: 0, y: 4)
                             .onChange(of: password) { _ in
                                 validatePasswords()
                             }
-                    }
-                    
-                    // Confirm password field
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Confirm Password")
-                            .font(Theme.Typography.captionFontSystem)
-                            .foregroundColor(Theme.Colors.textSecondary)
+                        }
                         
-                        SecureField("Confirm your password", text: $confirmPassword)
+                        // Confirm password field
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Confirm Password")
+                                .font(Theme.Typography.captionFontSystem)
+                                .foregroundColor(Theme.Colors.textSecondary)
+                            
+                            HStack {
+                                Image(systemName: "lock.shield.fill")
+                                    .foregroundColor(Theme.Colors.primary.opacity(0.7))
+                                    .font(.system(size: 16))
+                                    .frame(width: 24)
+                                
+                                SecureField("Confirm your password", text: $confirmPassword)
+                            }
                             .padding()
                             .background(Theme.Colors.cardBackground)
                             .cornerRadius(Theme.Dimensions.cornerRadiusMedium)
@@ -306,26 +533,48 @@ struct SignUpView: View {
                                 RoundedRectangle(cornerRadius: Theme.Dimensions.cornerRadiusMedium)
                                     .stroke(passwordsMatch ? Color.gray.opacity(0.2) : Theme.Colors.error, lineWidth: 1)
                             )
+                            .shadow(color: Color.black.opacity(0.03), radius: 8, x: 0, y: 4)
                             .onChange(of: confirmPassword) { _ in
                                 validatePasswords()
                             }
-                        
-                        if !passwordsMatch {
-                            Text("Passwords don't match")
-                                .font(Theme.Typography.captionFontSystem)
-                                .foregroundColor(Theme.Colors.error)
+                            
+                            if !passwordsMatch {
+                                HStack {
+                                    Image(systemName: "exclamationmark.triangle.fill")
+                                        .foregroundColor(Theme.Colors.error)
+                                        .font(.system(size: 12))
+                                    
+                                    Text("Passwords don't match")
+                                        .font(Theme.Typography.captionFontSystem)
+                                        .foregroundColor(Theme.Colors.error)
+                                }
+                                .padding(.top, 4)
+                                .transition(.opacity)
+                            }
                         }
                     }
+                    .opacity(fieldsAppeared ? 1.0 : 0.0)
+                    .offset(y: fieldsAppeared ? 0 : 20)
                     
-                    // Terms and conditions
+                    // Terms and conditions with animation
                     Toggle(isOn: $agreeToTerms) {
-                        Text("I agree to the Terms and Conditions")
-                            .font(Theme.Typography.captionFontSystem)
-                            .foregroundColor(Theme.Colors.textSecondary)
+                        HStack {
+                            Text("I agree to the ")
+                                .font(Theme.Typography.captionFontSystem)
+                                .foregroundColor(Theme.Colors.textSecondary)
+                            
+                            Text("Terms and Conditions")
+                                .font(Theme.Typography.captionFontSystem.bold())
+                                .foregroundColor(Theme.Colors.primary)
+                                .underline()
+                        }
                     }
                     .toggleStyle(CheckboxToggleStyle())
+                    .padding(.top, 8)
+                    .opacity(fieldsAppeared ? 1.0 : 0.0)
+                    .offset(y: fieldsAppeared ? 0 : 20)
                     
-                    // Sign up button
+                    // Sign up button with animation
                     Button(action: signUp) {
                         if authViewModel.isLoading {
                             ProgressView()
@@ -334,17 +583,31 @@ struct SignUpView: View {
                                 .frame(maxWidth: .infinity)
                                 .padding()
                         } else {
-                            Text("Create Account")
-                                .font(Theme.Typography.bodyFontSystem.bold())
-                                .foregroundColor(.white)
-                                .frame(maxWidth: .infinity)
-                                .padding()
+                            HStack {
+                                Text("Create Account")
+                                    .font(Theme.Typography.bodyFontSystem.bold())
+                                    .foregroundColor(.white)
+                                
+                                Image(systemName: "checkmark.circle")
+                                    .font(.system(size: 16, weight: .semibold))
+                                    .foregroundColor(.white)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding()
                         }
                     }
-                    .background(Theme.Colors.primary)
+                    .background(
+                        LinearGradient(
+                            gradient: Gradient(colors: [Theme.Colors.primary, Theme.Colors.primary.opacity(0.8)]),
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
                     .cornerRadius(Theme.Dimensions.cornerRadiusMedium)
+                    .shadow(color: Theme.Colors.primary.opacity(0.3), radius: 10, x: 0, y: 5)
                     .disabled(!isFormValid() || authViewModel.isLoading)
-                    .opacity(!isFormValid() || authViewModel.isLoading ? 0.7 : 1.0)
+                    .opacity(buttonAppeared ? (!isFormValid() || authViewModel.isLoading ? 0.7 : 1.0) : 0.0)
+                    .offset(y: buttonAppeared ? 0 : 20)
                     .padding(.top, 16)
                     
                     // Sign in link
@@ -360,6 +623,8 @@ struct SignUpView: View {
                         }
                     }
                     .padding(.top, 16)
+                    .opacity(buttonAppeared ? 1.0 : 0.0)
+                    .offset(y: buttonAppeared ? 0 : 20)
                 }
                 .padding(.horizontal, 24)
                 .padding(.vertical, 16)
@@ -415,70 +680,130 @@ struct ForgotPasswordView: View {
     @State private var email: String = ""
     @State private var resetSent = false
     
+    // Animation states
+    @State private var headerAppeared = false
+    @State private var contentAppeared = false
+    @State private var buttonAppeared = false
+    
     var onBackTapped: () -> Void
     
     var body: some View {
         ZStack {
+            // Background with subtle gradient overlay
             Theme.Colors.background.ignoresSafeArea()
+                .overlay(
+                    LinearGradient(
+                        gradient: Gradient(colors: [
+                            Theme.Colors.accent.opacity(0.05),
+                            Theme.Colors.background
+                        ]),
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
             
             VStack(spacing: 24) {
-                // Title
-                VStack(spacing: 8) {
+                // Title with animation
+                VStack(spacing: 12) {
                     Image(systemName: "lock.rotation")
                         .font(.system(size: 60))
                         .foregroundColor(Theme.Colors.primary)
+                        .background(
+                            Circle()
+                                .fill(Theme.Colors.primary.opacity(0.1))
+                                .frame(width: 100, height: 100)
+                        )
+                        .scaleEffect(headerAppeared ? 1.0 : 0.5)
+                        .opacity(headerAppeared ? 1.0 : 0.0)
                     
                     Text("Reset Password")
                         .font(Theme.Typography.titleFontSystem)
                         .foregroundColor(Theme.Colors.text)
+                        .opacity(headerAppeared ? 1.0 : 0.0)
+                        .offset(y: headerAppeared ? 0 : 10)
                     
                     Text("Enter your email to receive reset instructions")
                         .font(Theme.Typography.captionFontSystem)
                         .foregroundColor(Theme.Colors.textSecondary)
                         .multilineTextAlignment(.center)
+                        .opacity(headerAppeared ? 0.8 : 0.0)
+                        .offset(y: headerAppeared ? 0 : 10)
                 }
                 .padding(.vertical, 40)
+                .onAppear {
+                    withAnimation(.spring(response: 0.6, dampingFraction: 0.8, blendDuration: 0).delay(0.1)) {
+                        headerAppeared = true
+                    }
+                    withAnimation(.easeOut(duration: 0.5).delay(0.3)) {
+                        contentAppeared = true
+                    }
+                    withAnimation(.easeOut(duration: 0.5).delay(0.5)) {
+                        buttonAppeared = true
+                    }
+                }
                 
                 if resetSent {
-                    // Success message
-                    VStack(spacing: 16) {
-                        Image(systemName: "checkmark.circle.fill")
-                            .font(.system(size: 40))
-                            .foregroundColor(Theme.Colors.success)
+                    // Success message with animation
+                    VStack(spacing: 20) {
+                        ZStack {
+                            Circle()
+                                .fill(Theme.Colors.success.opacity(0.1))
+                                .frame(width: 80, height: 80)
+                            
+                            Image(systemName: "checkmark.circle.fill")
+                                .font(.system(size: 40))
+                                .foregroundColor(Theme.Colors.success)
+                        }
+                        .scaleEffect(contentAppeared ? 1.0 : 0.5)
+                        .opacity(contentAppeared ? 1.0 : 0.0)
                         
                         Text("Reset Link Sent")
                             .font(Theme.Typography.subheadingFontSystem)
                             .foregroundColor(Theme.Colors.text)
+                            .opacity(contentAppeared ? 1.0 : 0.0)
+                            .offset(y: contentAppeared ? 0 : 10)
                         
                         Text("Check your email for instructions to reset your password")
                             .font(Theme.Typography.bodyFontSystem)
                             .foregroundColor(Theme.Colors.textSecondary)
                             .multilineTextAlignment(.center)
+                            .opacity(contentAppeared ? 0.8 : 0.0)
+                            .offset(y: contentAppeared ? 0 : 10)
                     }
                     .padding(.horizontal, 24)
                     .padding(.bottom, 24)
                 } else {
-                    // Email field
-                    VStack(alignment: .leading, spacing: 8) {
+                    // Email field with animation
+                    VStack(alignment: .leading, spacing: 12) {
                         Text("Email")
                             .font(Theme.Typography.captionFontSystem)
                             .foregroundColor(Theme.Colors.textSecondary)
                         
-                        TextField("Enter your email", text: $email)
-                            .keyboardType(.emailAddress)
-                            .autocapitalization(.none)
-                            .disableAutocorrection(true)
-                            .padding()
-                            .background(Theme.Colors.cardBackground)
-                            .cornerRadius(Theme.Dimensions.cornerRadiusMedium)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: Theme.Dimensions.cornerRadiusMedium)
-                                    .stroke(Color.gray.opacity(0.2), lineWidth: 1)
-                            )
+                        HStack {
+                            Image(systemName: "envelope.fill")
+                                .foregroundColor(Theme.Colors.primary.opacity(0.7))
+                                .font(.system(size: 16))
+                                .frame(width: 24)
+                            
+                            TextField("Enter your email", text: $email)
+                                .keyboardType(.emailAddress)
+                                .autocapitalization(.none)
+                                .disableAutocorrection(true)
+                        }
+                        .padding()
+                        .background(Theme.Colors.cardBackground)
+                        .cornerRadius(Theme.Dimensions.cornerRadiusMedium)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: Theme.Dimensions.cornerRadiusMedium)
+                                .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+                        )
+                        .shadow(color: Color.black.opacity(0.03), radius: 8, x: 0, y: 4)
                     }
                     .padding(.horizontal, 24)
+                    .opacity(contentAppeared ? 1.0 : 0.0)
+                    .offset(y: contentAppeared ? 0 : 20)
                     
-                    // Reset password button
+                    // Reset password button with animation
                     Button(action: resetPassword) {
                         if authViewModel.isLoading {
                             ProgressView()
@@ -487,31 +812,54 @@ struct ForgotPasswordView: View {
                                 .frame(maxWidth: .infinity)
                                 .padding()
                         } else {
-                            Text("Send Reset Link")
-                                .font(Theme.Typography.bodyFontSystem.bold())
-                                .foregroundColor(.white)
-                                .frame(maxWidth: .infinity)
-                                .padding()
+                            HStack {
+                                Text("Send Reset Link")
+                                    .font(Theme.Typography.bodyFontSystem.bold())
+                                    .foregroundColor(.white)
+                                
+                                Image(systemName: "paperplane.fill")
+                                    .font(.system(size: 14, weight: .semibold))
+                                    .foregroundColor(.white)
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding()
                         }
                     }
-                    .background(Theme.Colors.primary)
+                    .background(
+                        LinearGradient(
+                            gradient: Gradient(colors: [Theme.Colors.primary, Theme.Colors.primary.opacity(0.8)]),
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
                     .cornerRadius(Theme.Dimensions.cornerRadiusMedium)
+                    .shadow(color: Theme.Colors.primary.opacity(0.3), radius: 10, x: 0, y: 5)
                     .disabled(email.isEmpty || authViewModel.isLoading)
-                    .opacity(email.isEmpty || authViewModel.isLoading ? 0.7 : 1.0)
+                    .opacity(buttonAppeared ? (email.isEmpty || authViewModel.isLoading ? 0.7 : 1.0) : 0.0)
+                    .offset(y: buttonAppeared ? 0 : 20)
                     .padding(.horizontal, 24)
-                    .padding(.top, 16)
+                    .padding(.top, 20)
                 }
                 
-                // Back button
+                // Back button with animation
                 Button(action: onBackTapped) {
-                    HStack {
+                    HStack(spacing: 4) {
                         Image(systemName: "chevron.left")
+                            .font(.system(size: 14))
                         Text("Back to Sign In")
+                            .font(Theme.Typography.captionFontSystem.bold())
                     }
-                    .font(Theme.Typography.captionFontSystem.bold())
                     .foregroundColor(Theme.Colors.primary)
+                    .padding(.vertical, 8)
+                    .padding(.horizontal, 16)
+                    .background(
+                        Capsule()
+                            .fill(Theme.Colors.primary.opacity(0.1))
+                    )
                 }
                 .padding(.top, 16)
+                .opacity(buttonAppeared ? 1.0 : 0.0)
+                .offset(y: buttonAppeared ? 0 : 20)
                 
                 Spacer()
             }
@@ -534,7 +882,9 @@ struct ForgotPasswordView: View {
         Task {
             await authViewModel.resetPassword(for: email) { success, error in
                 if success {
-                    resetSent = true
+                    withAnimation(.spring()) {
+                        resetSent = true
+                    }
                 } else {
                     // Error will be shown via authViewModel.errorMessage
                     print("Reset password failed: \(error?.localizedDescription ?? "Unknown error")")

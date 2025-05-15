@@ -193,7 +193,7 @@ struct ProfileView: View {
                             )
                             .animation(
                                 Animation.easeInOut(duration: 3 + Double(i) * 0.5)
-                                    .repeatForever(autoreverses: true)
+                                    .repeatCount(2, autoreverses: true)
                                     .delay(Double(i) * 0.2),
                                 value: profileAppeared
                             )
@@ -227,7 +227,7 @@ struct ProfileView: View {
                         )
                         .animation(
                             Animation.easeInOut(duration: 4)
-                                .repeatForever(autoreverses: false)
+                                .repeatCount(2, autoreverses: false)
                                 .delay(1),
                             value: profileAppeared
                         )
@@ -256,8 +256,7 @@ struct ProfileView: View {
                                 .scaleEffect(profileAppeared ? 1.1 : 1)
                                 .opacity(profileAppeared ? 0 : 0.6)
                                 .animation(
-                                    Animation.easeOut(duration: 1.5)
-                                        .repeatForever(autoreverses: false),
+                                    Animation.easeOut(duration: 1.5),
                                     value: profileAppeared
                                 )
                         )
