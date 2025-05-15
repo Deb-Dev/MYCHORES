@@ -2,7 +2,7 @@
 // MyChores
 //
 // Created on 2025-05-02.
-// Updated on 2025-05-03.
+// Enhanced on 2025-05-14.
 //
 
 import SwiftUI
@@ -17,6 +17,7 @@ struct ChoresView: View {
     @State private var showingAddChore = false
     @State private var showingChoreDetail: Chore?
     @State private var isRefreshing = false
+    @State private var appearAnimation = false
     
     // MARK: - Initialization
     
@@ -30,7 +31,7 @@ struct ChoresView: View {
     var body: some View {
         ZStack {
             Theme.Colors.background.ignoresSafeArea()
-            mainChoresContent // Use the extracted computed property
+            mainChoresContent
         }
         .modifier(ToastViewModifier(toastManager: toastManager))
         .refreshable {
@@ -54,16 +55,42 @@ struct ChoresView: View {
                 viewModel.errorMessage = nil
             }
         }
+        .onAppear {
+            withAnimation(.easeOut(duration: 0.6)) {
+                appearAnimation = true
+            }
+        }
     }
     
     // Extracted main content view
     private var mainChoresContent: some View {
         VStack(spacing: 0) {
-            // Filter controls
+            // Metrics header
+            if !viewModel.isLoading && !viewModel.chores.isEmpty {
+                ChoreMetricsCard(
+                    completedCount: viewModel.chores.filter(\.isCompleted).count,
+                    totalCount: viewModel.chores.count,
+                    overdueCount: viewModel.chores.filter(\.isOverdue).count
+                )
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+                .transition(.opacity.combined(with: .move(edge: .top)))
+                .scaleEffect(appearAnimation ? 1.0 : 0.95)
+                .opacity(appearAnimation ? 1.0 : 0)
+                .animation(.spring(response: 0.6, dampingFraction: 0.7).delay(0.1), value: appearAnimation)
+            }
+            
+            // Filter controls with improved styling
             FilterControlsView(viewModel: viewModel)
+                .padding(.top, 4)
+                .opacity(appearAnimation ? 1.0 : 0)
+                .offset(y: appearAnimation ? 0 : 10)
+                .animation(.spring(response: 0.6, dampingFraction: 0.7).delay(0.2), value: appearAnimation)
             
             // Chore content
             choreContent
+                .opacity(appearAnimation ? 1.0 : 0)
+                .animation(.spring(response: 0.6, dampingFraction: 0.7).delay(0.3), value: appearAnimation)
         }
         .navigationTitle("Chores")
         .toolbar {
@@ -71,7 +98,20 @@ struct ChoresView: View {
                 Button {
                     showingAddChore = true
                 } label: {
-                    Image(systemName: "plus")
+                    Label("Add Chore", systemImage: "plus.circle.fill")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundColor(Theme.Colors.primary)
+                }
+                .scaleEffect(appearAnimation ? 1.0 : 0.8)
+                .opacity(appearAnimation ? 1.0 : 0)
+                .animation(.spring(response: 0.6, dampingFraction: 0.7).delay(0.4), value: appearAnimation)
+            }
+            
+            ToolbarItem(placement: .navigationBarLeading) {
+                if viewModel.isLoading {
+                    ProgressView()
+                        .progressViewStyle(CircularProgressViewStyle())
+                        .scaleEffect(0.8)
                 }
             }
         }
@@ -92,6 +132,8 @@ struct ChoresView: View {
                 }
             )
         }
+        .animation(.easeInOut, value: viewModel.chores.count)
+        .animation(.easeInOut, value: viewModel.filteredChores.count)
     }
     
     // MARK: - Computed Properties
@@ -119,10 +161,17 @@ struct ChoresView: View {
     // MARK: - UI Components
     
     private var loadingView: some View {
-        ProgressView()
-            .progressViewStyle(CircularProgressViewStyle())
-            .scaleEffect(1.5)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        VStack {
+            ProgressView()
+                .progressViewStyle(CircularProgressViewStyle())
+                .scaleEffect(1.5)
+                .padding(.bottom, 20)
+            
+            Text("Loading your chores...")
+                .font(Theme.Typography.bodyFontSystem)
+                .foregroundColor(Theme.Colors.textSecondary)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
     
     // MARK: - Methods
@@ -137,8 +186,6 @@ struct ChoresView: View {
         isRefreshing = false
     }
 }
-// MARK: - Date Extension
-
 
 #Preview {
     ChoresView(householdId: "sample_household_id")
