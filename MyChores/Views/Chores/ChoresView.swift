@@ -34,9 +34,6 @@ struct ChoresView: View {
             mainChoresContent
         }
         .modifier(ToastViewModifier(toastManager: toastManager))
-        .refreshable {
-            await refreshChores()
-        }
         .onChange(of: viewModel.pointsEarnedMessage) { newValue in
             if let message = newValue {
                 toastManager.show(ToastManager.ToastType.points(message))
@@ -92,6 +89,8 @@ struct ChoresView: View {
                 choreContent
                     .opacity(appearAnimation ? 1.0 : 0)
                     .animation(.spring(response: 0.6, dampingFraction: 0.7).delay(0.3), value: appearAnimation)
+                    // Ensure minimum content height for scrolling
+                    .frame(minHeight: UIScreen.main.bounds.height * 0.7)
                 
                 // Add some bottom padding for better scrolling experience
                 Spacer().frame(height: 30)

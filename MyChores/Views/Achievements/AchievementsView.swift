@@ -83,7 +83,7 @@ struct AchievementsView: View {
             }
         }
         .navigationTitle("Achievements")
-        .onAppear { 
+        .onAppear {
             Task {
                 await loadInitialData()
             }
@@ -113,7 +113,7 @@ struct AchievementsView: View {
         let previouslyEarnedCount = UserDefaults.standard.integer(forKey: "previouslyEarnedBadgesCount")
         
         // Load badges
-        viewModel.loadBadges()
+        await viewModel.loadBadges()
         
         // Animate the UI elements
         animateUIElements()
@@ -140,7 +140,7 @@ struct AchievementsView: View {
     
     // Refresh data
     private func refreshData() async {
-        viewModel.loadBadges()
+        await viewModel.loadBadges()
     }
     
     // Animate UI elements with staggered timing
@@ -469,97 +469,42 @@ struct AchievementsView: View {
     private var enhancedBadgesSection: some View {
         VStack(spacing: 16) {
             HStack {
-                Text(LocalizedStringKey("Your Badges"))
-                    .font(.system(size: 18, weight: .bold))
+                Text("Your Badges")
+                    .font(Theme.Typography.titleFont)
                     .foregroundColor(Theme.Colors.text)
-                
                 Spacer()
-                
-                Text("\(viewModel.earnedBadges.count) earned")
-                    .font(.system(size: 14, weight: .medium))
+                Text("View All") // Placeholder for potential future action
+                    .font(Theme.Typography.bodyFont)
                     .foregroundColor(Theme.Colors.primary)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                    .background(Theme.Colors.primary.opacity(0.1))
-                    .cornerRadius(12)
             }
             .padding(.horizontal, 20)
-            .padding(.top, 16)
 
-            if !viewModel.earnedBadges.isEmpty {
-                Text("Earned Badges")
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundColor(Theme.Colors.textSecondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 20)
-                    .padding(.top, 8)
+            if viewModel.unearnedBadges.isEmpty && viewModel.earnedBadges.isEmpty {
+                enhancedEmptyBadgesView
+            } else {
+                // Display earned badges first, then unearned
+                let allDisplayBadges = viewModel.earnedBadges + viewModel.unearnedBadges
                 
-                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
-                    ForEach(Array(viewModel.earnedBadges.enumerated()), id: \.element.id) { index, badge in
+                LazyVGrid(columns: Array(repeating: .init(.flexible(), spacing: 16), count: 2), spacing: 16) {
+                    ForEach(allDisplayBadges.indices, id: \.self) { index in
+                        let badge = allDisplayBadges[index]
+                        let isEarned = viewModel.earnedBadges.contains(where: { $0.id == badge.id })
+                        
                         EnhancedBadgeCardView(
-                            badge: badge, 
-                            isEarned: true, 
-                            progress: 1.0, 
-                            delay: Double(index) * 0.05 + 0.1
-                        )
-                        .onTapGesture { 
-                            withAnimation { 
-                                showingBadgeDetail = badge 
-                            }
-                        }
-                        .accessibilityIdentifier("BadgeCard_Earned_\(badge.id ?? "")")
-                        .scaleEffect(badgesAppeared ? 1.0 : 0.8)
-                        .opacity(badgesAppeared ? 1.0 : 0)
-                        .animation(
-                            .spring(response: 0.5, dampingFraction: 0.7)
-                            .delay(Double(index) * 0.05 + 0.4),
-                            value: badgesAppeared
-                        )
-                    }
-                }
-                .padding(.horizontal, 16)
-            }
-            
-            if !viewModel.unearnedBadges.isEmpty {
-                Text("Badges to Earn")
-                    .font(.system(size: 16, weight: .medium))
-                    .foregroundColor(Theme.Colors.textSecondary)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 20)
-                    .padding(.top, 12)
-                
-                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
-                    ForEach(Array(viewModel.unearnedBadges.enumerated()), id: \.element.id) { index, badge in
-                        EnhancedBadgeCardView(
-                            badge: badge, 
-                            isEarned: false,
-                            progress: viewModel.getBadgeProgress(for: badge),
+                            badge: badge,
+                            isEarned: isEarned,
+                            viewModel: viewModel, // Pass the viewModel
                             delay: Double(index) * 0.05 + 0.3
                         )
-                        .onTapGesture { 
-                            withAnimation { 
-                                showingBadgeDetail = badge 
-                            }
+                        .onTapGesture {
+                            showingBadgeDetail = badge
                         }
-                        .accessibilityIdentifier("BadgeCard_Unearned_\(badge.id ?? "")")
-                        .scaleEffect(badgesAppeared ? 1.0 : 0.8)
-                        .opacity(badgesAppeared ? 1.0 : 0)
-                        .animation(
-                            .spring(response: 0.5, dampingFraction: 0.7)
-                            .delay(Double(index) * 0.05 + 0.6),
-                            value: badgesAppeared
-                        )
+                        .accessibilityElement(children: .combine)
+                        .accessibilityLabel(isEarned ? "Earned badge: \\(badge.name)" : "Unearned badge: \\(badge.name)")
+                        .accessibilityHint("Tap to see details for badge \\(badge.name)")
                     }
                 }
-                .padding(.horizontal, 16)
             }
-
-            if viewModel.earnedBadges.isEmpty && viewModel.unearnedBadges.isEmpty {
-                enhancedEmptyBadgesView
-                    .accessibilityIdentifier("Achievements_EmptyState")
-            }
-            
-            Spacer().frame(height: 8)
         }
         .padding(.bottom, 16)
         .background(Theme.Colors.cardBackground)
@@ -745,9 +690,11 @@ struct ParticleView: View {
 struct EnhancedBadgeCardView: View {
     let badge: Badge
     let isEarned: Bool
-    let progress: Double
+    // Remove progress from initializer, add viewModel
+    let viewModel: AchievementsViewModel
     let delay: Double
-    
+
+    @State private var progress: Double = 0.0 // Add State for progress
     @State private var appeared = false
     @State private var rotationX: CGFloat = 0
     @State private var rotationY: CGFloat = 0
@@ -864,7 +811,7 @@ struct EnhancedBadgeCardView: View {
         )
         .cornerRadius(Theme.Dimensions.cornerRadiusMedium)
         .shadow(
-            color: isRecentlyEarned ? Theme.Colors.accent.opacity(0.4) : 
+            color: isRecentlyEarned ? Theme.Colors.accent.opacity(0.4) :
                    (isEarned ? Theme.Colors.accent.opacity(0.2) : Color.clear),
             radius: isRecentlyEarned ? 12 : 8,
             x: 0,
@@ -879,27 +826,23 @@ struct EnhancedBadgeCardView: View {
                 )
         )
         .rotation3DEffect(
-            .degrees(rotationY * 10), 
+            .degrees(rotationY * 10),
             axis: (x: 1, y: 0, z: 0)
         )
         .rotation3DEffect(
-            .degrees(rotationX * 10), 
+            .degrees(rotationX * 10),
             axis: (x: 0, y: 1, z: 0)
         )
         .gesture(
             DragGesture(minimumDistance: 0)
                 .onChanged { value in
-                    // Calculate rotation based on touch position
-                    let width = UIScreen.main.bounds.width / 2
-                    let height = 100 // Approximate height of card
-                    let xFactor = (value.location.x - width/2) / width
-                    let yFactor = (Int(value.location.y) - height/2) / height
-                    
-                    rotationX = xFactor
-                    rotationY = CGFloat(yFactor)
+                    // Calculate rotation based on drag gesture
+                    // Adjust sensitivity as needed
+                    rotationY = value.translation.width * 0.1
+                    rotationX = -value.translation.height * 0.1
                 }
                 .onEnded { _ in
-                    // Reset rotation when touch ends
+                    // Spring back to original position
                     withAnimation(.spring()) {
                         rotationX = 0
                         rotationY = 0
@@ -907,14 +850,23 @@ struct EnhancedBadgeCardView: View {
                 }
         )
         .onAppear {
-            // Check if this is the most recently earned badge
-            if let recentBadgeId = UserDefaults.standard.string(forKey: "recentlyEarnedBadgeId"),
-               recentBadgeId == badge.id {
-                self.isRecentlyEarned = true
+            // Animate appearance
+            withAnimation(.easeOut(duration: 0.5).delay(delay)) {
+                appeared = true
+            }
+            // Fetch progress on appear
+            Task {
+                self.progress = await viewModel.getBadgeProgress(for: badge)
             }
             
-            withAnimation(.spring(response: 0.6, dampingFraction: 0.7).delay(delay)) {
-                appeared = true
+            // Check if this badge was recently earned
+            if UserDefaults.standard.string(forKey: "recentlyEarnedBadgeId") == badge.id {
+                isRecentlyEarned = true
+                // Clear the flag after a delay
+                DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                    UserDefaults.standard.removeObject(forKey: "recentlyEarnedBadgeId")
+                    isRecentlyEarned = false
+                }
             }
         }
     }

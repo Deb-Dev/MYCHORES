@@ -45,7 +45,8 @@ class MockUserService: UserServiceProtocol {
         if let error = errorToThrow {
             throw error
         }
-        let newUser = User(id: id, name: name, email: email, createdAt: Date())
+        let newUser = User(id: id, name: name, email: email)
+        newUser.createdAt = Date()
         self.userToReturn = newUser
         self.usersToReturn.append(newUser)
         return newUser

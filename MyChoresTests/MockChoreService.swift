@@ -114,6 +114,7 @@ class MockChoreService: ChoreServiceProtocol {
     // Properties for the new completeChore return type
     var mockCompletedChoreToReturn: Chore? 
     var mockNextRecurringChoreToReturn: Chore? 
+    var mockBadgesToReturn: [Badge] = []  // added for badge support
 
     func fetchChores(forHouseholdId householdId: String, includeCompleted: Bool) async throws -> [Chore] {
         fetchChoresCalled = true
@@ -158,7 +159,7 @@ class MockChoreService: ChoreServiceProtocol {
     }
 
     // MODIFIED: Signature and return type to match protocol
-    func completeChore(choreId: String, completedByUserId: String, createNextRecurrence: Bool) async throws -> (completedChore: Chore, pointsEarned: Int, nextRecurringChore: Chore?) {
+    func completeChore(choreId: String, completedByUserId: String, createNextRecurrence: Bool) async throws -> (completedChore: Chore, pointsEarned: Int, nextRecurringChore: Chore?, earnedBadges: [Badge]) {
         completeChoreCalled = true
         lastCompletedChoreId = choreId
         lastCompletedByUserId = completedByUserId
@@ -196,7 +197,10 @@ class MockChoreService: ChoreServiceProtocol {
             }
         }
 
-        return (completedChore: choreToComplete, pointsEarned: points, nextRecurringChore: nextChore)
+        // Mock earned badges (empty by default, can be set via mockBadgesToReturn)
+        let earnedBadges: [Badge] = mockBadgesToReturn
+
+        return (completedChore: choreToComplete, pointsEarned: points, nextRecurringChore: nextChore, earnedBadges: earnedBadges)
     }
 
     func deleteChore(withId choreId: String) async throws {
@@ -288,5 +292,6 @@ class MockChoreService: ChoreServiceProtocol {
         // Reset new mock properties for completeChore
         mockCompletedChoreToReturn = nil
         mockNextRecurringChoreToReturn = nil
+        mockBadgesToReturn = []
     }
 }

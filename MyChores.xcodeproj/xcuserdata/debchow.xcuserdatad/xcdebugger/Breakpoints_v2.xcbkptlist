@@ -7,47 +7,49 @@
       <BreakpointProxy
          BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
          <BreakpointContent
-            uuid = "9ED34E86-2449-4B3E-899B-F1D527E28E29"
+            uuid = "AC3BB8C4-DC06-4BC8-A02A-C6B1AF4FDD01"
             shouldBeEnabled = "Yes"
             ignoreCount = "0"
             continueAfterRunningActions = "No"
-            filePath = "MyChores/Services/AuthService.swift"
+            filePath = "MyChores/Services/ChoreService.swift"
             startingColumnNumber = "9223372036854775807"
             endingColumnNumber = "9223372036854775807"
-            startingLineNumber = "166"
-            endingLineNumber = "166"
-            landmarkName = "signIn(email:password:)"
+            startingLineNumber = "358"
+            endingLineNumber = "358"
+            landmarkName = "deleteAllChores(forHouseholdId:)"
             landmarkType = "7">
-            <Locations>
-               <Location
-                  uuid = "9ED34E86-2449-4B3E-899B-F1D527E28E29 - 40b9b05a5cbdd2a6"
-                  shouldBeEnabled = "Yes"
-                  ignoreCount = "0"
-                  continueAfterRunningActions = "No"
-                  symbolName = "(4) suspend resume partial function for MyChores.AuthService.signIn(email: Swift.String, password: Swift.String) async throws -&gt; ()"
-                  moduleName = "MyChores.debug.dylib"
-                  usesParentBreakpointCondition = "Yes"
-                  urlString = "file:///Users/debchow/Documents/coco/MyChores/MyChores/Services/AuthService.swift"
-                  startingColumnNumber = "9223372036854775807"
-                  endingColumnNumber = "9223372036854775807"
-                  startingLineNumber = "166"
-                  endingLineNumber = "166">
-               </Location>
-               <Location
-                  uuid = "9ED34E86-2449-4B3E-899B-F1D527E28E29 - 40b9b05a5cbdd2a6"
-                  shouldBeEnabled = "Yes"
-                  ignoreCount = "0"
-                  continueAfterRunningActions = "No"
-                  symbolName = "(4) suspend resume partial function for MyChores.AuthService.signIn(email: Swift.String, password: Swift.String) async throws -&gt; ()"
-                  moduleName = "MyChores.debug.dylib"
-                  usesParentBreakpointCondition = "Yes"
-                  urlString = "file:///Users/debchow/Documents/coco/MyChores/MyChores/Services/AuthService.swift"
-                  startingColumnNumber = "9223372036854775807"
-                  endingColumnNumber = "9223372036854775807"
-                  startingLineNumber = "166"
-                  endingLineNumber = "166">
-               </Location>
-            </Locations>
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "73D737BE-F48A-4A8B-BAEE-82F37FBAB1EA"
+            shouldBeEnabled = "Yes"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "MyChores/Services/ChoreService.swift"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "363"
+            endingLineNumber = "363"
+            landmarkName = "ChoreService"
+            landmarkType = "3">
+         </BreakpointContent>
+      </BreakpointProxy>
+      <BreakpointProxy
+         BreakpointExtensionID = "Xcode.Breakpoint.FileBreakpoint">
+         <BreakpointContent
+            uuid = "33330FD1-3D9D-4500-9B42-E9D92D418222"
+            shouldBeEnabled = "Yes"
+            ignoreCount = "0"
+            continueAfterRunningActions = "No"
+            filePath = "MyChores/ViewModels/ChoreViewModel.swift"
+            startingColumnNumber = "9223372036854775807"
+            endingColumnNumber = "9223372036854775807"
+            startingLineNumber = "362"
+            endingLineNumber = "362"
+            landmarkName = "completeChore(choreId:)"
+            landmarkType = "7">
          </BreakpointContent>
       </BreakpointProxy>
    </Breakpoints>

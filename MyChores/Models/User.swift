@@ -44,19 +44,103 @@ struct User: Identifiable, Codable {
     /// User's points in the current month (resets monthly)
     var monthlyPoints: Int = 0
     
+    /// Count of chores completed early (before due date)
+    var earlyCompletionCount: Int = 0
+    
+    /// Current streak of days with completed chores
+    var currentStreakDays: Int = 0
+    
+    /// Highest streak of days with completed chores
+    var highestStreakDays: Int = 0
+    
+    /// Date of the last chore completion (for streak calculation)
+    var lastChoreCompletionDate: Date?
+    
     /// Week start date for tracking weekly points
     var currentWeekStartDate: Date?
     
     /// Month start date for tracking monthly points
     var currentMonthStartDate: Date?
     
-    /// List of badges earned by the user
+    /// Array of badge keys that the user has earned
     var earnedBadges: [String] = []
     
     /// User's privacy settings
     var privacySettings: UserPrivacySettings = UserPrivacySettings()
     
-    /// Custom CodingKeys to match Firestore field names
+    /// Initialize a new user with default values
+    init(id: String? = nil, name: String, email: String, photoURL: String? = nil) {
+        self.id = id
+        self.name = name
+        self.email = email
+        self.photoURL = photoURL
+        self.createdAt = Date()
+        self.householdIds = []
+        self.earnedBadges = []
+        self.totalPoints = 0
+        self.weeklyPoints = 0
+        self.monthlyPoints = 0
+        self.earlyCompletionCount = 0
+        self.currentStreakDays = 0
+        self.highestStreakDays = 0
+    }
+    
+    /// Encode the user to Firestore-compatible format
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        
+        try container.encodeIfPresent(id, forKey: .id)
+        try container.encode(name, forKey: .name)
+        try container.encode(email, forKey: .email)
+        try container.encodeIfPresent(photoURL, forKey: .photoURL)
+        try container.encode(householdIds, forKey: .householdIds)
+        try container.encodeIfPresent(fcmToken, forKey: .fcmToken)
+        try container.encode(createdAt, forKey: .createdAt)
+        try container.encode(totalPoints, forKey: .totalPoints)
+        try container.encode(weeklyPoints, forKey: .weeklyPoints)
+        try container.encode(monthlyPoints, forKey: .monthlyPoints)
+        try container.encode(earnedBadges, forKey: .earnedBadges)
+        try container.encode(earlyCompletionCount, forKey: .earlyCompletionCount)
+        try container.encode(currentStreakDays, forKey: .currentStreakDays)
+        try container.encode(highestStreakDays, forKey: .highestStreakDays)
+        try container.encodeIfPresent(lastChoreCompletionDate, forKey: .lastChoreCompletionDate)
+        try container.encodeIfPresent(currentWeekStartDate, forKey: .currentWeekStartDate)
+        try container.encodeIfPresent(currentMonthStartDate, forKey: .currentMonthStartDate)
+        try container.encode(privacySettings, forKey: .privacySettings)
+    }
+    
+    /// Check if user has earned a specific badge
+    func hasBadge(withKey badgeKey: String) -> Bool {
+        return earnedBadges.contains(badgeKey)
+    }
+    
+    /// Generate a display-friendly string of the user's points
+    var pointsDisplay: String {
+        return "\(totalPoints) \(totalPoints == 1 ? "pt" : "pts")"
+    }
+    
+    /// Calculate the user's current level based on total points
+    var level: Int {
+        // Simple level calculation: 1 level per 100 points, minimum level 1
+        return max(1, Int(totalPoints / 100) + 1)
+    }
+}
+
+/// User privacy settings for controlling what information is shared
+struct UserPrivacySettings: Codable {
+    /// Whether the user's profile is visible to others
+    var showProfile: Bool = true
+    
+    /// Whether the user's achievements are visible to others
+    var showAchievements: Bool = true
+    
+    /// Whether to share the user's activity with household members
+    var shareActivity: Bool = true
+}
+
+// MARK: - Coding Keys
+extension User {
+    /// Coding keys for Firestore encoding/decoding
     enum CodingKeys: String, CodingKey {
         case id
         case name
@@ -68,152 +152,13 @@ struct User: Identifiable, Codable {
         case totalPoints
         case weeklyPoints
         case monthlyPoints
+        case earnedBadges
+        case earlyCompletionCount
+        case currentStreakDays
+        case highestStreakDays
+        case lastChoreCompletionDate
         case currentWeekStartDate
         case currentMonthStartDate
-        case earnedBadges
         case privacySettings
     }
-    
-    /// Custom initializer to handle potential issues with missing data
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        
-        // Required fields
-        id = try container.decodeIfPresent(String.self, forKey: .id)
-        name = try container.decode(String.self, forKey: .name)
-        email = try container.decode(String.self, forKey: .email)
-        
-        // Optional fields with defaults
-        photoURL = try container.decodeIfPresent(String.self, forKey: .photoURL)
-        fcmToken = try container.decodeIfPresent(String.self, forKey: .fcmToken)
-        
-        // Arrays with defaults
-        do {
-            householdIds = try container.decode([String].self, forKey: .householdIds)
-        } catch {
-            householdIds = []
-            print("Warning: householdIds not found, defaulting to empty array")
-        }
-        
-        do {
-            earnedBadges = try container.decode([String].self, forKey: .earnedBadges)
-        } catch {
-            earnedBadges = []
-            print("Warning: earnedBadges not found, defaulting to empty array")
-        }
-        
-        // Dates
-        do {
-            createdAt = try container.decode(Date.self, forKey: .createdAt)
-        } catch {
-            createdAt = Date()
-            print("Warning: createdAt not found, defaulting to current date")
-        }
-        
-        currentWeekStartDate = try container.decodeIfPresent(Date.self, forKey: .currentWeekStartDate)
-        currentMonthStartDate = try container.decodeIfPresent(Date.self, forKey: .currentMonthStartDate)
-        
-        // Numeric values with defaults
-        do {
-            totalPoints = try container.decode(Int.self, forKey: .totalPoints)
-        } catch {
-            totalPoints = 0
-            print("Warning: totalPoints not found, defaulting to 0")
-        }
-        
-        do {
-            weeklyPoints = try container.decode(Int.self, forKey: .weeklyPoints)
-        } catch {
-            weeklyPoints = 0
-            print("Warning: weeklyPoints not found, defaulting to 0")
-        }
-        
-        do {
-            monthlyPoints = try container.decode(Int.self, forKey: .monthlyPoints)
-        } catch {
-            monthlyPoints = 0
-            print("Warning: monthlyPoints not found, defaulting to 0")
-        }
-        
-        // Privacy settings
-        do {
-            privacySettings = try container.decode(UserPrivacySettings.self, forKey: .privacySettings)
-        } catch {
-            privacySettings = UserPrivacySettings()
-            print("Warning: privacySettings not found, defaulting to default settings")
-        }
-    }
-    
-    /// Standard initializer
-    init(
-        id: String? = nil,
-        name: String,
-        email: String,
-        photoURL: String? = nil,
-        householdIds: [String] = [],
-        fcmToken: String? = nil,
-        createdAt: Date = Date(),
-        totalPoints: Int = 0,
-        weeklyPoints: Int = 0,
-        monthlyPoints: Int = 0,
-        currentWeekStartDate: Date? = nil,
-        currentMonthStartDate: Date? = nil,
-        earnedBadges: [String] = [],
-        privacySettings: UserPrivacySettings = UserPrivacySettings()
-    ) {
-        self.id = id
-        self.name = name
-        self.email = email
-        self.photoURL = photoURL
-        self.householdIds = householdIds
-        self.fcmToken = fcmToken
-        self.createdAt = createdAt
-        self.totalPoints = totalPoints
-        self.weeklyPoints = weeklyPoints
-        self.monthlyPoints = monthlyPoints
-        self.currentWeekStartDate = currentWeekStartDate
-        self.currentMonthStartDate = currentMonthStartDate
-        self.earnedBadges = earnedBadges
-        self.privacySettings = privacySettings
-    }
-    
-    /// Force set the ID when it's missing
-    /// This is needed because DocumentID can't be set directly
-    /// - Parameter newId: The ID to set
-    mutating func forceSetId(_ newId: String) {
-        self.id = newId
-    }
-}
-
-/// Privacy settings for a user
-struct UserPrivacySettings: Codable {
-    /// Whether to share profile with household members
-    var showProfile: Bool = true
-    
-    /// Whether to display achievements to household members
-    var showAchievements: Bool = true
-    
-    /// Whether to share activity history with household members
-    var shareActivity: Bool = true
-}
-
-// MARK: - Sample Data
-
-extension User {
-    static let sample = User(
-        id: "sample_user_id",
-        name: "John Doe",
-        email: "john@example.com",
-        photoURL: nil,
-        householdIds: ["sample_household_id"],
-        fcmToken: "sample_fcm_token",
-        createdAt: Date(),
-        totalPoints: 120,
-        weeklyPoints: 25,
-        monthlyPoints: 75,
-        currentWeekStartDate: Calendar.current.date(from: Calendar.current.dateComponents([.yearForWeekOfYear, .weekOfYear], from: Date())),
-        currentMonthStartDate: Calendar.current.date(from: Calendar.current.dateComponents([.year, .month], from: Date())),
-        earnedBadges: ["first_chore", "ten_chores"],
-        privacySettings: UserPrivacySettings(showProfile: true, showAchievements: true, shareActivity: true)
-    )
 }

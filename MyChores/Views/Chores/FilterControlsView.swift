@@ -115,6 +115,7 @@ struct FilterControlsView: View {
                 )
                 .frame(height: 4)
         }
+        .background(Theme.Colors.background)
         .onAppear {
             withAnimation(.easeOut(duration: 0.5)) {
                 animateControls = true

@@ -52,21 +52,17 @@ class UserService: UserServiceProtocol {
     // MARK: - User CRUD Operations
     
     func createUser(id: String, name: String, email: String) async throws -> User {
-        let newUser = User(
+        var newUser = User(
             id: id,
             name: name,
-            email: email,
-            photoURL: nil,
-            householdIds: [],
-            fcmToken: nil,
-            createdAt: Date(),
-            totalPoints: 0,
-            weeklyPoints: 0,
-            monthlyPoints: 0,
-            currentWeekStartDate: getCurrentWeekStartDate(),
-            currentMonthStartDate: getCurrentMonthStartDate(),
-            earnedBadges: []
+            email: email
         )
+        
+        // Set the initial values for required fields
+        newUser.createdAt = Date()
+        newUser.currentWeekStartDate = getCurrentWeekStartDate()
+        newUser.currentMonthStartDate = getCurrentMonthStartDate()
+        
         try usersCollection.document(id).setData(from: newUser)
         return newUser
     }

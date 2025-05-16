@@ -316,6 +316,17 @@ class ChoreViewModel: ObservableObject {
                 let completedChore = result.completedChore
                 let pointsEarned = result.pointsEarned
                 let nextRecurringChore = result.nextRecurringChore
+                let earnedBadges = result.earnedBadges
+                
+                // Show notifications for earned badges
+                if !earnedBadges.isEmpty {
+                    if earnedBadges.count == 1 {
+                        self.badgeEarnedMessage = "You earned the \(earnedBadges[0].name) badge! 🏆"
+                    } else {
+                        let badgeNames = earnedBadges.map { $0.name }.joined(separator: ", ")
+                        self.badgeEarnedMessage = "You earned \(earnedBadges.count) badges: \(badgeNames)! 🏆"
+                    }
+                }
 
                 // Update in the chores array
                 if let index = self.chores.firstIndex(where: { $0.id == choreId }) {
@@ -348,7 +359,7 @@ class ChoreViewModel: ObservableObject {
                 // No need to call self.loadChores() anymore if service returns all necessary data
                 
             } catch {
-                self.errorMessage = "Failed to complete chore: \\(error.localizedDescription)"
+                self.errorMessage = "Failed to complete chore: \(error.localizedDescription)"
             }
         }
     }

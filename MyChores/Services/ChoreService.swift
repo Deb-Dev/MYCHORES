@@ -31,8 +31,8 @@ protocol ChoreServiceProtocol {
     func fetchOverdueChores(forHouseholdId householdId: String) async throws -> [Chore]
     func fetchCompletedChores(byCompleterUserId userId: String) async throws -> [Chore]
     func updateChore(_ chore: Chore) async throws
-    // MODIFIED: Changed return type
-    func completeChore(choreId: String, completedByUserId: String, createNextRecurrence: Bool) async throws -> (completedChore: Chore, pointsEarned: Int, nextRecurringChore: Chore?)
+    // MODIFIED: Changed return type to include earned badges
+    func completeChore(choreId: String, completedByUserId: String, createNextRecurrence: Bool) async throws -> (completedChore: Chore, pointsEarned: Int, nextRecurringChore: Chore?, earnedBadges: [Badge])
     func deleteChore(withId choreId: String) async throws
     func deleteAllChores(forHouseholdId householdId: String) async throws
 }
@@ -258,8 +258,8 @@ class ChoreService: ChoreServiceProtocol {
     ///   - choreId: Chore ID
     ///   - completedByUserId: User ID of who completed it
     ///   - createNextRecurrence: Whether to create the next occurrence for recurring chores
-    /// - Returns: Tuple containing the completed chore, points awarded, and optionally the next recurring chore
-    func completeChore(choreId: String, completedByUserId: String, createNextRecurrence: Bool = true) async throws -> (completedChore: Chore, pointsEarned: Int, nextRecurringChore: Chore?) {
+    /// - Returns: Tuple containing the completed chore, points awarded, earned badges, and optionally the next recurring chore
+    func completeChore(choreId: String, completedByUserId: String, createNextRecurrence: Bool = true) async throws -> (completedChore: Chore, pointsEarned: Int, nextRecurringChore: Chore?, earnedBadges: [Badge]) {
         // Fetch the chore
         guard var chore = try await fetchChore(withId: choreId) else {
             throw NSError(domain: "ChoreService", code: 1, userInfo: [NSLocalizedDescriptionKey: "Chore not found"])
@@ -271,45 +271,63 @@ class ChoreService: ChoreServiceProtocol {
             throw NSError(domain: "ChoreService", code: 2, userInfo: [NSLocalizedDescriptionKey: "Chore is already completed"])
         }
         
+        // Fetch user before completing to check which badges they already have
+        guard var user = try await userService.fetchUser(withId: completedByUserId) else {
+            throw NSError(domain: "ChoreService", code: 404, userInfo: [NSLocalizedDescriptionKey: "User not found"])
+        }
+        let existingBadges = Set(user.earnedBadges)
+        
         // Update completion status
+        let completionDate = Date()
         chore.isCompleted = true
-        chore.completedAt = Date()
+        chore.completedAt = completionDate
         chore.completedByUserId = completedByUserId
         
         // Save changes
         try await updateChore(chore) // updateChore will also handle notification removal
         
+        // Update streak information
+        user.updateStreakInfo(completionDate: completionDate)
+        
+        // Check if the chore was completed early (before due date)
+        if let dueDate = chore.dueDate {
+            user.checkAndUpdateEarlyCompletion(completionDate: completionDate, dueDate: dueDate)
+        }
+        
+        // Save user changes
+        try await userService.updateUser(user)
+        
         // Award points to the user
         try await self.userService.updateUserPoints(userId: completedByUserId, points: chore.pointValue)
         
-        // Check for badges (Assuming this is a method within ChoreService or accessible to it)
-        // If checkAndAwardBadges is part of UserService, it should be called there or via userService.
-        // For now, assuming it's a local or accessible method.
-        // try await checkAndAwardBadges(forUserId: completedByUserId) // This method is not defined in the provided ChoreService snippet.
-                                                                    // This should likely be handled by UserService or called on userService.
-                                                                    // For now, I will comment it out as its definition is missing.
+        // Check for and award badges based on completion count
+        try await checkAndAwardBadges(forUserId: completedByUserId)
+        
+        // Fetch user again to see which new badges were earned
+        guard let updatedUser = try await userService.fetchUser(withId: completedByUserId) else {
+            throw NSError(domain: "ChoreService", code: 404, userInfo: [NSLocalizedDescriptionKey: "User not found after badge update"])
+        }
+        
+        // Determine newly earned badges
+        let updatedBadges = Set(updatedUser.earnedBadges)
+        let newlyEarnedBadgeKeys = updatedBadges.subtracting(existingBadges)
+        let earnedBadges = newlyEarnedBadgeKeys.compactMap { Badge.getBadge(byKey: $0) }
 
         var nextCreatedChore: Chore? = nil
         // Create next occurrence if recurring
         if createNextRecurrence && chore.isRecurring {
             if let nextChoreTemplate = chore.createNextOccurrence() { // createNextOccurrence should return a Chore struct
-                // The createdByUserId for the next recurring chore might be the original creator or system.
-                // Assuming original creator for now. If chore.createdByUserId is nil, this will be an issue.
-                // The Chore model has createdByUserId as String?, but createChore expects String.
-                // The Chore.createNextOccurrence() should ideally set a valid createdByUserId.
-                // For safety, let's use the completedByUserId if original is nil, or a system ID.
-                // Or, ensure chore.createdByUserId is always non-nil for recurring chores.
-                let creatorOfNextInstance = nextChoreTemplate.createdByUserId ?? completedByUserId // Fallback, review this logic
+                let creatorOfNextInstance = nextChoreTemplate.createdByUserId ?? completedByUserId // Fallback
 
-                nextCreatedChore = try await self.createChore( // Use self.createChore to ensure it's logged in Firestore
+                nextCreatedChore = try await self.createChore(
                     title: nextChoreTemplate.title,
                     description: nextChoreTemplate.description,
                     householdId: nextChoreTemplate.householdId,
                     assignedToUserId: nextChoreTemplate.assignedToUserId,
-                    createdByUserId: creatorOfNextInstance, // Ensure this is valid
+                    createdByUserId: creatorOfNextInstance,
                     dueDate: nextChoreTemplate.dueDate,
                     pointValue: nextChoreTemplate.pointValue,
-                    isRecurring: nextChoreTemplate.isRecurring, // Should be true
+                    isRecurring: nextChoreTemplate.isRecurring,
                     recurrenceType: nextChoreTemplate.recurrenceType,
                     recurrenceInterval: nextChoreTemplate.recurrenceInterval,
                     recurrenceDaysOfWeek: nextChoreTemplate.recurrenceDaysOfWeek,
@@ -318,7 +336,7 @@ class ChoreService: ChoreServiceProtocol {
                 )
             }
         }
-        return (completedChore: chore, pointsEarned: chore.pointValue, nextRecurringChore: nextCreatedChore)
+        return (completedChore: chore, pointsEarned: chore.pointValue, nextRecurringChore: nextCreatedChore, earnedBadges: earnedBadges)
     }
     
     /// Delete a chore
@@ -348,30 +366,74 @@ class ChoreService: ChoreServiceProtocol {
     /// Check and award badges based on completed chore count
     /// - Parameter userId: User ID to check
     private func checkAndAwardBadges(forUserId userId: String) async throws {
-        // Get completed chore count
-        let completedChores = try await choresCollection
-            .whereField("completedByUserId", isEqualTo: userId)
-            .whereField("isCompleted", isEqualTo: true)
-            .getDocuments()
-        
-        let choreCount = completedChores.documents.count
-        
-        // Check for first chore badge
-        if choreCount >= 1 {
-            // MODIFIED: Use injected userService
-            _ = try await self.userService.awardBadge(to: userId, badgeKey: "first_chore")
+        // Fetch the user to check badges based on stored task count
+        guard var user = try await userService.fetchUser(withId: userId) else {
+            throw NSError(domain: "ChoreService", code: 404, userInfo: [NSLocalizedDescriptionKey: "User not found for badges"])
         }
         
-        // Check for 10 chores badge
-        if choreCount >= 10 {
-            // MODIFIED: Use injected userService
-            _ = try await self.userService.awardBadge(to: userId, badgeKey: "ten_chores")
+        // Use the user's total points to approximate completed task count
+        // Each completed task rewards points, so this gives us a good estimate
+        let choreCount = user.totalPoints
+        
+        // Check for milestones badges (including first_chore badge)
+        await checkMilestoneBadges(userId: userId, choreCount: choreCount)
+        
+        // Check for streak badges using the user's streak tracking
+        if user.highestStreakDays >= 7 && !user.earnedBadges.contains("daily_streak") {
+            let badgeAwarded = try await self.userService.awardBadge(to: userId, badgeKey: "daily_streak")
+            if badgeAwarded {
+                self.notificationService.sendBadgeEarnedNotification(toUserId: userId, badgeKey: "daily_streak")
+            }
         }
         
-        // Check for 50 chores badge
-        if choreCount >= 50 {
-            // MODIFIED: Use injected userService
-            _ = try await self.userService.awardBadge(to: userId, badgeKey: "fifty_chores")
+        // Check for early completion badges using the user's early completion tracking
+        if user.earlyCompletionCount >= 5 && !user.earnedBadges.contains("early_bird") {
+            let badgeAwarded = try await self.userService.awardBadge(to: userId, badgeKey: "early_bird")
+            if badgeAwarded {
+                self.notificationService.sendBadgeEarnedNotification(toUserId: userId, badgeKey: "early_bird")
+            }
+        }
+        
+        // Check for household participation badge
+        if user.householdIds.count > 1 {
+            let badgeAwarded = try await self.userService.awardBadge(to: userId, badgeKey: "household_helper")
+            if badgeAwarded {
+                self.notificationService.sendBadgeEarnedNotification(toUserId: userId, badgeKey: "household_helper")
+            }
+        }
+        
+        // Safety check for first_chore badge
+        // This ensures backward compatibility for users who might have completed chores
+        // before the totalPoints tracking was implemented
+        if choreCount > 0 && !user.earnedBadges.contains("first_chore") {
+            let badgeAwarded = try await self.userService.awardBadge(to: userId, badgeKey: "first_chore")
+            if badgeAwarded {
+                self.notificationService.sendBadgeEarnedNotification(toUserId: userId, badgeKey: "first_chore")
+            }
+        }
+    }
+    
+    // Helper methods for different badge types
+    
+    private func checkMilestoneBadges(userId: String, choreCount: Int) async {
+        do {
+            // Milestone badges for completing X number of chores
+            let milestoneBadges = [
+                (count: 1, key: "first_chore"),
+                (count: 10, key: "ten_chores"),
+                (count: 50, key: "fifty_chores"),
+                (count: 100, key: "hundred_chores")
+            ]
+            
+            // Sort by count descending to award highest badges first
+            for milestone in milestoneBadges.sorted(by: { $0.count > $1.count }) where choreCount >= milestone.count {
+                let badgeAwarded = try await self.userService.awardBadge(to: userId, badgeKey: milestone.key)
+                if badgeAwarded {
+                    self.notificationService.sendBadgeEarnedNotification(toUserId: userId, badgeKey: milestone.key)
+                }
+            }
+        } catch {
+            print("Error checking milestone badges: \(error.localizedDescription)")
         }
     }
 }

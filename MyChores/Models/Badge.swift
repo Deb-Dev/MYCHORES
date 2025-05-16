@@ -70,6 +70,38 @@ extension Badge {
             iconName: "50.circle.fill",
             colorName: "Accent",
             requiredTaskCount: 50
+        ),
+        Badge(
+            badgeKey: "hundred_chores",
+            name: "Century Club",
+            description: "Completed 100 chores",
+            iconName: "100.circle.fill",
+            colorName: "Success",
+            requiredTaskCount: 100
+        ),
+        Badge(
+            badgeKey: "daily_streak",
+            name: "Consistency Champion",
+            description: "Completed chores for 7 consecutive days",
+            iconName: "flame.fill",
+            colorName: "Error",
+            requiredTaskCount: nil
+        ),
+        Badge(
+            badgeKey: "household_helper",
+            name: "Team Player",
+            description: "Completed chores in multiple households",
+            iconName: "person.3.fill",
+            colorName: "Secondary",
+            requiredTaskCount: nil
+        ),
+        Badge(
+            badgeKey: "early_bird", 
+            name: "Early Bird",
+            description: "Completed 5 chores before their due date",
+            iconName: "alarm.fill",
+            colorName: "Primary",
+            requiredTaskCount: nil
         )
     ]
     
