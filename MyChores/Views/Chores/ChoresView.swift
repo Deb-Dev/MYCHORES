@@ -64,33 +64,41 @@ struct ChoresView: View {
     
     // Extracted main content view
     private var mainChoresContent: some View {
-        VStack(spacing: 0) {
-            // Metrics header
-            if !viewModel.isLoading && !viewModel.chores.isEmpty {
-                ChoreMetricsCard(
-                    completedCount: viewModel.chores.filter(\.isCompleted).count,
-                    totalCount: viewModel.chores.count,
-                    overdueCount: viewModel.chores.filter(\.isOverdue).count
-                )
-                .padding(.horizontal, 16)
-                .padding(.vertical, 12)
-                .transition(.opacity.combined(with: .move(edge: .top)))
-                .scaleEffect(appearAnimation ? 1.0 : 0.95)
-                .opacity(appearAnimation ? 1.0 : 0)
-                .animation(.spring(response: 0.6, dampingFraction: 0.7).delay(0.1), value: appearAnimation)
+        ScrollView {
+            VStack(spacing: 0) {
+                // Metrics header
+                if !viewModel.isLoading && !viewModel.chores.isEmpty {
+                    ChoreMetricsCard(
+                        completedCount: viewModel.chores.filter(\.isCompleted).count,
+                        totalCount: viewModel.chores.count,
+                        overdueCount: viewModel.chores.filter(\.isOverdue).count
+                    )
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 12)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+                    .scaleEffect(appearAnimation ? 1.0 : 0.95)
+                    .opacity(appearAnimation ? 1.0 : 0)
+                    .animation(.spring(response: 0.6, dampingFraction: 0.7).delay(0.1), value: appearAnimation)
+                }
+                
+                // Filter controls with improved styling
+                FilterControlsView(viewModel: viewModel)
+                    .padding(.top, 4)
+                    .opacity(appearAnimation ? 1.0 : 0)
+                    .offset(y: appearAnimation ? 0 : 10)
+                    .animation(.spring(response: 0.6, dampingFraction: 0.7).delay(0.2), value: appearAnimation)
+                
+                // Chore content
+                choreContent
+                    .opacity(appearAnimation ? 1.0 : 0)
+                    .animation(.spring(response: 0.6, dampingFraction: 0.7).delay(0.3), value: appearAnimation)
+                
+                // Add some bottom padding for better scrolling experience
+                Spacer().frame(height: 30)
             }
-            
-            // Filter controls with improved styling
-            FilterControlsView(viewModel: viewModel)
-                .padding(.top, 4)
-                .opacity(appearAnimation ? 1.0 : 0)
-                .offset(y: appearAnimation ? 0 : 10)
-                .animation(.spring(response: 0.6, dampingFraction: 0.7).delay(0.2), value: appearAnimation)
-            
-            // Chore content
-            choreContent
-                .opacity(appearAnimation ? 1.0 : 0)
-                .animation(.spring(response: 0.6, dampingFraction: 0.7).delay(0.3), value: appearAnimation)
+        }
+        .refreshable {
+            await refreshChores()
         }
         .navigationTitle("Chores")
         .toolbar {

@@ -47,7 +47,8 @@ struct ChoreListView: View {
                     .transition(.opacity)
                     .animation(.easeInOut(duration: 0.5), value: viewModel.filteredChores.isEmpty)
             } else {
-                choreListContentView
+                // Now we'll put the chore items directly into this container without ScrollView
+                fullChoreListContent
             }
         }
         .background(backgroundPatternView)
@@ -94,20 +95,15 @@ struct ChoreListView: View {
         .offset(x: 20, y: -100)
     }
     
-    // Chore list scroll view with content
-    private var choreListContentView: some View {
-        ScrollView {
-            LazyVStack(spacing: 12) {
-                choreListItemsView
-                
-                // Add some bottom padding for better scrolling experience
-                Spacer().frame(height: 20)
-            }
-            .padding(.top, 8)
+    // Full chore list content without its own ScrollView
+    private var fullChoreListContent: some View {
+        LazyVStack(spacing: 12) {
+            choreListItemsView
+            
+            // Add some bottom padding for better scrolling experience
+            Spacer().frame(height: 20)
         }
-        .refreshable {
-//            await $viewModel.refreshChores
-        }
+        .padding(.top, 8)
         .transition(.opacity)
         .animation(.easeInOut(duration: 0.5), value: viewModel.filteredChores.isEmpty)
     }

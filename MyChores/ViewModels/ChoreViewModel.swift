@@ -353,6 +353,12 @@ class ChoreViewModel: ObservableObject {
         }
     }
     
+    /// Refreshes chores from Firebase
+    @MainActor
+    func refreshChores() async {
+        await loadChoresAsync()
+    }
+    
     // MARK: - Helper Methods
     
     /// Sort chores in a sensible order (overdue & upcoming first, then by due date)
