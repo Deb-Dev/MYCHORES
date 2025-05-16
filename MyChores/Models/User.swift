@@ -68,6 +68,9 @@ struct User: Identifiable, Codable {
     /// User's privacy settings
     var privacySettings: UserPrivacySettings = UserPrivacySettings()
     
+    /// Terms and privacy policy acceptance information
+    var termsAcceptance: TermsAcceptance = TermsAcceptance()
+    
     /// Initialize a new user with default values
     init(id: String? = nil, name: String, email: String, photoURL: String? = nil) {
         self.id = id
@@ -107,6 +110,7 @@ struct User: Identifiable, Codable {
         try container.encodeIfPresent(currentWeekStartDate, forKey: .currentWeekStartDate)
         try container.encodeIfPresent(currentMonthStartDate, forKey: .currentMonthStartDate)
         try container.encode(privacySettings, forKey: .privacySettings)
+        try container.encode(termsAcceptance, forKey: .termsAcceptance)
     }
     
     /// Check if user has earned a specific badge
@@ -138,6 +142,21 @@ struct UserPrivacySettings: Codable {
     var shareActivity: Bool = true
 }
 
+/// Represents user's terms and privacy policy acceptance
+struct TermsAcceptance: Codable, Equatable {
+    /// Whether the user has accepted the terms of service
+    var termsAccepted: Bool = false
+    
+    /// Whether the user has accepted the privacy policy
+    var privacyAccepted: Bool = false
+    
+    /// Date when the user accepted the terms and privacy policy
+    var acceptanceDate: Date?
+    
+    /// Version of the terms that were accepted
+    var termsVersion: String = "1.0"
+}
+
 // MARK: - Coding Keys
 extension User {
     /// Coding keys for Firestore encoding/decoding
@@ -160,5 +179,6 @@ extension User {
         case currentWeekStartDate
         case currentMonthStartDate
         case privacySettings
+        case termsAcceptance
     }
 }

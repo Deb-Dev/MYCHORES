@@ -63,7 +63,7 @@ struct AchievementsView: View {
                     .padding(.bottom, 20)
                 }
                 .refreshable {
-                    await refreshData()
+                    refreshData()
                 }
                 .accessibilityIdentifier("Achievements_ScrollView")
                 
@@ -113,7 +113,7 @@ struct AchievementsView: View {
         let previouslyEarnedCount = UserDefaults.standard.integer(forKey: "previouslyEarnedBadgesCount")
         
         // Load badges
-        await viewModel.loadBadges()
+        viewModel.loadBadges()
         
         // Animate the UI elements
         animateUIElements()
@@ -139,8 +139,8 @@ struct AchievementsView: View {
     }
     
     // Refresh data
-    private func refreshData() async {
-        await viewModel.loadBadges()
+    private func refreshData() {
+        viewModel.loadBadges()
     }
     
     // Animate UI elements with staggered timing

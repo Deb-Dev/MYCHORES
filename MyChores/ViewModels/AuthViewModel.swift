@@ -275,6 +275,47 @@ class AuthViewModel: ObservableObject {
         isLoading = false
     }
     
+    /// Update user's terms and privacy policy acceptance
+    /// - Parameters:
+    ///   - termsAccepted: Whether the terms are accepted
+    ///   - privacyAccepted: Whether the privacy policy is accepted
+    ///   - acceptanceDate: Date of acceptance
+    func updateUserTermsAcceptance(termsAccepted: Bool, privacyAccepted: Bool, acceptanceDate: Date) async {
+        guard let uid = Auth.auth().currentUser?.uid else {
+            print("Cannot update terms acceptance: No authenticated user")
+            return
+        }
+        
+        do {
+            // Update only the terms acceptance fields
+            let termsAcceptance = TermsAcceptance(
+                termsAccepted: termsAccepted,
+                privacyAccepted: privacyAccepted,
+                acceptanceDate: acceptanceDate,
+                termsVersion: "1.0" // Current version
+            )
+            
+            try await authService.updateUserTermsAcceptance(uid: uid, termsAcceptance: termsAcceptance)
+            
+            // Update the local user object
+            if var updatedUser = currentUser {
+                updatedUser.termsAcceptance = termsAcceptance
+                currentUser = updatedUser
+            }
+            
+            print("Terms acceptance updated successfully")
+        } catch {
+            print("Failed to update terms acceptance: \(error.localizedDescription)")
+            errorMessage = "Failed to update terms: \(error.localizedDescription)"
+        }
+    }
+    
+    /// Check if user has accepted terms and privacy policy
+    var hasAcceptedTerms: Bool {
+        guard let user = currentUser else { return false }
+        return user.termsAcceptance.termsAccepted && user.termsAcceptance.privacyAccepted
+    }
+    
     // MARK: - Helper Methods
     
     /// Validates email format

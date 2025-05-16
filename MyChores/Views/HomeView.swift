@@ -652,6 +652,8 @@ struct PrivacySettingsView: View {
     @State private var showProfileToOthers = UserDefaults.standard.bool(forKey: "showProfileToOthers")
     @State private var showAchievementsToOthers = UserDefaults.standard.bool(forKey: "showAchievementsToOthers")
     @State private var shareActivityWithHousehold = UserDefaults.standard.bool(forKey: "shareActivityWithHousehold")
+    @State private var showingPrivacyTerms = false
+    @State private var showingDeleteConfirmation = false
     
     init() {
         // Set defaults if no values are in UserDefaults
@@ -691,10 +693,11 @@ struct PrivacySettingsView: View {
                     
                     Section {
                         Button {
-                            // Deep link to privacy policy
+                            // Present the privacy policy view
+                            showPrivacyTerms()
                         } label: {
                             HStack {
-                                Text("Privacy Policy")
+                                Text("Privacy Policy & Terms")
                                 Spacer()
                                 Image(systemName: "arrow.up.right")
                             }
@@ -702,6 +705,7 @@ struct PrivacySettingsView: View {
                         
                         Button {
                             // Action to delete account
+                            showDeleteAccountConfirmation()
                         } label: {
                             Text("Delete My Account")
                                 .foregroundStyle(.red)
@@ -726,6 +730,20 @@ struct PrivacySettingsView: View {
                 }
                 .onAppear {
                     loadPrivacySettings()
+                }
+                .sheet(isPresented: $showingPrivacyTerms) {
+                    PrivacyTermsView()
+                }
+                .alert("Delete Account", isPresented: $showingDeleteConfirmation) {
+                    Button("Cancel", role: .cancel) {}
+                    Button("Delete", role: .destructive) {
+                        Task {
+                            // Implement account deletion logic
+//                            await $authViewModel.deleteAccount
+                        }
+                    }
+                } message: {
+                    Text("Are you sure you want to delete your account? This action cannot be undone and will permanently remove all your data from our servers.")
                 }
             }
         }
@@ -762,6 +780,14 @@ struct PrivacySettingsView: View {
             showAchievementsToOthers = UserDefaults.standard.bool(forKey: "showAchievementsToOthers")
             shareActivityWithHousehold = UserDefaults.standard.bool(forKey: "shareActivityWithHousehold")
         }
+    }
+    
+    private func showPrivacyTerms() {
+        showingPrivacyTerms = true
+    }
+    
+    private func showDeleteAccountConfirmation() {
+        showingDeleteConfirmation = true
     }
 }
 
@@ -919,6 +945,9 @@ struct AboutView: View {
     @Environment(\.dismiss) private var dismiss
     let appVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0.0"
     let buildNumber = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1"
+    @State private var showingPrivacyTerms = false
+    @State private var privacyTermsInitialTab = 0 // 0 for Privacy, 1 for Terms
+    @State private var showingLicenses = false
     
     var body: some View {
         NavigationStack {
@@ -957,7 +986,8 @@ struct AboutView: View {
                         CardView {
                             VStack(alignment: .leading, spacing: 12) {
                                 Button {
-                                    // Open terms of service
+                                    privacyTermsInitialTab = 1 // Terms of Service tab
+                                    showingPrivacyTerms = true
                                 } label: {
                                     Text("Terms of Service")
                                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -967,7 +997,8 @@ struct AboutView: View {
                                 Divider()
                                 
                                 Button {
-                                    // Open privacy policy
+                                    privacyTermsInitialTab = 0 // Privacy Policy tab
+                                    showingPrivacyTerms = true
                                 } label: {
                                     Text("Privacy Policy")
                                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -978,6 +1009,7 @@ struct AboutView: View {
                                 
                                 Button {
                                     // Open licenses
+                                    showLicenses()
                                 } label: {
                                     Text("Third-Party Licenses")
                                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -1004,6 +1036,12 @@ struct AboutView: View {
                     }
                 }
             }
+            .sheet(isPresented: $showingPrivacyTerms) {
+                PrivacyTermsViewWithTab(initialTab: privacyTermsInitialTab)
+            }
+            .sheet(isPresented: $showingLicenses) {
+                LicensesView()
+            }
         }
     }
     
@@ -1020,6 +1058,10 @@ struct AboutView: View {
             
             Spacer()
         }
+    }
+    
+    private func showLicenses() {
+        showingLicenses = true
     }
 }
 

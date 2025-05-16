@@ -24,7 +24,12 @@ struct MainView: View {
                 LoadingView()
                 
             case .authenticated:
-                HomeView()
+                ZStack {
+                    HomeView()
+                    
+                    // Terms check overlay
+                    TermsCheckView()
+                }
             }
         }
         .animation(.easeInOut, value: authViewModel.authState)

@@ -25,6 +25,7 @@ protocol AuthServiceProtocol: ObservableObject where ObjectWillChangePublisher =
     func ensureCurrentProfileExists() async // New method
     func updateUserPrivacySettings(showProfile: Bool, showAchievements: Bool, shareActivity: Bool) async throws // New method for privacy settings
     func updateUserName(newName: String) async throws // NEW
+    func updateUserTermsAcceptance(uid: String, termsAcceptance: TermsAcceptance) async throws // Method for terms acceptance
 }
 
 /// Service for handling user authentication
@@ -341,6 +342,37 @@ class AuthService: AuthServiceProtocol {
         } catch {
             print("AuthService: Error updating user name in Firestore: \(error.localizedDescription)")
             self.errorMessage = "Failed to update user name: \(error.localizedDescription)"
+            throw error
+        }
+    }
+    
+    // MARK: - NEW: Update User Terms Acceptance
+    
+    // NEW: Method to update user's terms acceptance status
+    @MainActor
+    func updateUserTermsAcceptance(uid: String, termsAcceptance: TermsAcceptance) async throws {
+        guard getCurrentUserId() != nil else {
+            throw NSError(domain: "AuthService", code: 401, userInfo: [NSLocalizedDescriptionKey: "User not authenticated"])
+        }
+        
+        do {
+            // Update just the terms acceptance field in Firestore
+            let userRef = Firestore.firestore().collection("users").document(uid)
+            
+            try await userRef.updateData([
+                "termsAcceptance": [
+                    "termsAccepted": termsAcceptance.termsAccepted,
+                    "privacyAccepted": termsAcceptance.privacyAccepted,
+                    "acceptanceDate": termsAcceptance.acceptanceDate as Any,
+                    "termsVersion": termsAcceptance.termsVersion
+                ]
+            ])
+            
+            print("AuthService: User terms acceptance updated in Firestore")
+            self.errorMessage = nil
+        } catch {
+            print("AuthService: Error updating terms acceptance in Firestore: \(error.localizedDescription)")
+            self.errorMessage = "Failed to update terms acceptance: \(error.localizedDescription)"
             throw error
         }
     }
