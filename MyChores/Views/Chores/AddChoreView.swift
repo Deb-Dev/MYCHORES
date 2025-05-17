@@ -1148,7 +1148,7 @@ struct AddChoreView: View {
         let finalRecurrenceDayOfMonth = isRecurring && recurrenceType == .monthly ? recurrenceDayOfMonth : nil
         
         // Create the chore with the prepared parameters
-        await viewModel.createChore(
+        viewModel.createChore(
             title: title,
             description: description,
             assignedToUserId: assignedToUserId,

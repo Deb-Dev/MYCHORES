@@ -124,61 +124,6 @@ struct AboutView: View {
     }
 }
 
-/// Open Source Licenses View
-//struct LicensesView: View {
-//    @Environment(\.dismiss) private var dismiss
-//    
-//    // Sample list of open source libraries used in the app
-//    private let licenses = [
-//        License(name: "Firebase", url: "https://firebase.google.com", license: "Apache 2.0"),
-//        License(name: "SwiftUI", url: "https://developer.apple.com/xcode/swiftui/", license: "Apple"),
-//        License(name: "Combine", url: "https://developer.apple.com/documentation/combine", license: "Apple")
-//    ]
-//    
-//    var body: some View {
-//        NavigationStack {
-//            ZStack {
-//                Theme.Colors.background.ignoresSafeArea()
-//                
-//                List {
-//                    ForEach(licenses) { license in
-//                        VStack(alignment: .leading, spacing: 8) {
-//                            Text(license.name)
-//                                .font(Theme.Typography.bodyFontSystem.bold())
-//                                .foregroundColor(Theme.Colors.text)
-//                            
-//                            Text(license.url)
-//                                .font(Theme.Typography.captionFontSystem)
-//                                .foregroundColor(Theme.Colors.primary)
-//                            
-//                            Text("License: \(license.license)")
-//                                .font(Theme.Typography.captionFontSystem)
-//                                .foregroundColor(Theme.Colors.textSecondary)
-//                        }
-//                        .padding(.vertical, 8)
-//                    }
-//                }
-//                .navigationTitle("Open Source Libraries")
-//                .navigationBarTitleDisplayMode(.inline)
-//                .toolbar {
-//                    ToolbarItem(placement: .topBarTrailing) {
-//                        Button("Done") {
-//                            dismiss()
-//                        }
-//                    }
-//                }
-//            }
-//        }
-//    }
-//}
-
-//struct License: Identifiable {
-//    var id = UUID()
-//    let name: String
-//    let url: String
-//    let license: String
-//}
-
 #Preview {
     AboutView()
 }

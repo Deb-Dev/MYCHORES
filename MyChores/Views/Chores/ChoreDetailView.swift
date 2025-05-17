@@ -520,26 +520,31 @@ struct ChoreDetailView: View {
     
     /// Load user information for display
     private func loadUserInformation() {
-        // Load the assigned user's name if there is one
+        // Collect unique user IDs that need to be loaded
+        var userIds = Set<String>()
+        
         if let userId = chore.assignedToUserId {
-            loadUserName(userId)
+            userIds.insert(userId)
         }
         
-        // Also load the creator if available
         if let creatorId = chore.createdByUserId {
-            loadUserName(creatorId)
+            userIds.insert(creatorId)
         }
         
-        // And the completer
         if let completerId = chore.completedByUserId {
-            loadUserName(completerId)
+            userIds.insert(completerId)
+        }
+        
+        // Only fetch each user once
+        for userId in userIds {
+            loadUserName(userId)
         }
     }
     
     /// Loads a user's name by their ID
     private func loadUserName(_ userId: String) {
-        // For preview, just use mock data
         #if DEBUG
+        // For preview, just use mock data
         DispatchQueue.main.async {
             // Sample user names for preview
             let mockNames = [
@@ -551,21 +556,25 @@ struct ChoreDetailView: View {
             self.userNames[userId] = mockNames[userId] ?? "User \(userId.prefix(4))"
         }
         #else
-        // In real app, use the actual UserService
+        // In real app, fetch from UserService
         Task {
-            // Implementation would use the real UserService here
-            // This is commented out since we don't have the actual implementation
-            /*
             do {
-                if let user = try await UserService.shared.fetchUser(withId: userId) {
+                if let user = try await UserService.shared.getUser(withId: userId) {
                     await MainActor.run {
-                        userNames[userId] = user.name
+                        self.userNames[userId] = user.name
                     }
                 }
             } catch {
                 print("Error fetching user name for ID \(userId): \(error.localizedDescription)")
+                
+                // Set a fallback name if fetch fails
+                await MainActor.run {
+                    // Only set fallback if not already set
+                    if self.userNames[userId] == nil {
+                        self.userNames[userId] = "User \(userId.prefix(4))..."
+                    }
+                }
             }
-            */
         }
         #endif
     }
