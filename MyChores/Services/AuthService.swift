@@ -356,19 +356,46 @@ class AuthService: AuthServiceProtocol {
         }
         
         do {
-            // Update just the terms acceptance field in Firestore
+            // Get the current user document
             let userRef = Firestore.firestore().collection("users").document(uid)
             
+            // OPTION 1: Update with individual fields using dot notation
+            print("🔄 Updating terms acceptance in Firestore: termsAccepted=\(termsAcceptance.termsAccepted), privacyAccepted=\(termsAcceptance.privacyAccepted)")
+            
+            // Convert to Dictionary for cleaner Firestore storage
+            let termsData: [String: Any] = [
+                "termsAccepted": termsAcceptance.termsAccepted,
+                "privacyAccepted": termsAcceptance.privacyAccepted,
+                "acceptanceDate": termsAcceptance.acceptanceDate as Any,
+                "termsVersion": termsAcceptance.termsVersion
+            ]
+            
+            // Update the entire terms acceptance object at once
+            try await userRef.updateData(["termsAcceptance": termsData])
+            
+            print("✓ Firestore update complete with full termsAcceptance object")
+            
+            // Also update individual fields as backup approach
             try await userRef.updateData([
-                "termsAcceptance": [
-                    "termsAccepted": termsAcceptance.termsAccepted,
-                    "privacyAccepted": termsAcceptance.privacyAccepted,
-                    "acceptanceDate": termsAcceptance.acceptanceDate as Any,
-                    "termsVersion": termsAcceptance.termsVersion
-                ]
+                "termsAcceptance.termsAccepted": termsAcceptance.termsAccepted,
+                "termsAcceptance.privacyAccepted": termsAcceptance.privacyAccepted,
+                "termsAcceptance.acceptanceDate": termsAcceptance.acceptanceDate as Any,
+                "termsAcceptance.termsVersion": termsAcceptance.termsVersion
             ])
             
-            print("AuthService: User terms acceptance updated in Firestore")
+            print("✓ Firestore update complete with individual fields")
+            
+            // Immediately update the local user object with the new terms acceptance
+            if var user = self.currentUser {
+                user.termsAcceptance = termsAcceptance
+                self.currentUser = user
+                print("📱 Updated current user in AuthService with new terms acceptance")
+            }
+            
+            // After updating Firestore, refresh the current user to ensure we have the latest data
+            _ = try await refreshCurrentUser()
+            
+            print("✅ AuthService: User terms acceptance updated in Firestore and local state refreshed")
             self.errorMessage = nil
         } catch {
             print("AuthService: Error updating terms acceptance in Firestore: \(error.localizedDescription)")

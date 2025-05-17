@@ -105,9 +105,9 @@ struct ChoreListView: View {
             
             // Add invisible spacer to ensure sufficient content height for scrolling
             // when there are few items, especially when items are collapsed
-            if viewModel.filteredChores.count < 3 {
+            if viewModel.filteredChores.count < 6 {
                 Color.clear
-                    .frame(height: UIScreen.main.bounds.height * 0.6)
+                    .frame(height: UIScreen.main.bounds.height * 0.7)
             }
         }
         .padding(.top, 8)

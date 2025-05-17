@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
+  <rect width="1200" height="630" fill="#7DD2F0" />
+  <rect x="50" y="50" width="1100" height="530" fill="white" rx="20" ry="20" />
+  
+  <defs>
+    <linearGradient id="bg-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#B1E4F7;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#7DD2F0;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="trophy-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#FFF4C2;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#FFE97D;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Logo -->
+  <g transform="translate(150, 150)">
+    <rect width="200" height="200" rx="45" ry="45" fill="url(#bg-gradient)" />
+    
+    <!-- Trophy cup -->
+    <g transform="translate(40, 30) scale(0.6)">
+      <!-- Trophy body -->
+      <path d="M60,30 L140,30 L150,50 C170,60 190,80 190,110 C190,140 170,150 150,150 L140,150 C120,150 110,130 110,110 L110,50 L90,50 L90,110 C90,130 80,150 60,150 L50,150 C30,150 10,140 10,110 C10,80 30,60 50,50 L60,30 Z" fill="url(#trophy-gradient)" stroke="#F0D682" stroke-width="2" />
+      
+      <!-- Trophy base -->
+      <path d="M70,150 L130,150 L130,170 L120,180 L80,180 L70,170 L70,150 Z" fill="url(#trophy-gradient)" stroke="#F0D682" stroke-width="2" />
+      
+      <!-- Trophy handles -->
+      <path d="M140,50 C160,50 180,60 180,80 C180,100 160,110 140,110" fill="none" stroke="#F0D682" stroke-width="12" stroke-linecap="round" />
+      <path d="M60,50 C40,50 20,60 20,80 C20,100 40,110 60,110" fill="none" stroke="#F0D682" stroke-width="12" stroke-linecap="round" />
+      
+      <!-- Checkmark -->
+      <path d="M70,100 L90,120 L130,80" fill="none" stroke="white" stroke-width="15" stroke-linecap="round" stroke-linejoin="round" />
+    </g>
+  </g>
+  
+  <!-- Text -->
+  <text x="400" y="180" font-family="Arial, sans-serif" font-size="70" font-weight="bold" fill="#333">MyChores</text>
+  <text x="400" y="250" font-family="Arial, sans-serif" font-size="30" fill="#666">Simplify household tasks, earn rewards,</text>
+  <text x="400" y="290" font-family="Arial, sans-serif" font-size="30" fill="#666">and have fun with your family.</text>
+  
+  <!-- Features -->
+  <g transform="translate(400, 350)">
+    <text font-family="Arial, sans-serif" font-size="24" fill="#7DD2F0">✓ Create household tasks</text>
+    <text y="50" font-family="Arial, sans-serif" font-size="24" fill="#7DD2F0">✓ Assign chores to family members</text>
+    <text y="100" font-family="Arial, sans-serif" font-size="24" fill="#7DD2F0">✓ Earn points and badges</text>
+    <text y="150" font-family="Arial, sans-serif" font-size="24" fill="#7DD2F0">✓ Compete on leaderboards</text>
+  </g>
+  
+  <!-- App Store badges placeholder text -->
+  <text x="150" y="550" font-family="Arial, sans-serif" font-size="24" fill="#333">Available on App Store and Google Play</text>
+  
+  <!-- Website URL -->
+  <text x="1000" y="600" text-anchor="end" font-family="Arial, sans-serif" font-size="20" fill="#666">mychore.app</text>
+</svg>

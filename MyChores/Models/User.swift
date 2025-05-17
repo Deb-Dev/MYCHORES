@@ -155,6 +155,34 @@ struct TermsAcceptance: Codable, Equatable {
     
     /// Version of the terms that were accepted
     var termsVersion: String = "1.0"
+    
+    // Standard init
+    init(termsAccepted: Bool = false, privacyAccepted: Bool = false, acceptanceDate: Date? = nil, termsVersion: String = "1.0") {
+        self.termsAccepted = termsAccepted
+        self.privacyAccepted = privacyAccepted
+        self.acceptanceDate = acceptanceDate
+        self.termsVersion = termsVersion
+    }
+    
+    // Custom decoder init for handling potential issues with Firestore data
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        
+        // Decode with fallbacks to default values if fields are missing
+        termsAccepted = try container.decodeIfPresent(Bool.self, forKey: .termsAccepted) ?? false
+        privacyAccepted = try container.decodeIfPresent(Bool.self, forKey: .privacyAccepted) ?? false
+        acceptanceDate = try container.decodeIfPresent(Date.self, forKey: .acceptanceDate)
+        termsVersion = try container.decodeIfPresent(String.self, forKey: .termsVersion) ?? "1.0"
+        
+        print("🔄 TermsAcceptance decoded from Firestore: termsAccepted=\(termsAccepted), privacyAccepted=\(privacyAccepted)")
+    }
+    
+    enum CodingKeys: String, CodingKey {
+        case termsAccepted
+        case privacyAccepted
+        case acceptanceDate
+        case termsVersion
+    }
 }
 
 // MARK: - Coding Keys

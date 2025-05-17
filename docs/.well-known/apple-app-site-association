@@ -1,0 +1,15 @@
+{
+    "applinks": {
+        "apps": [],
+        "details": [
+            {
+                "appID": "XXXXXXXXXX.com.debasishchowdhury.MyChores",
+                "paths": [
+                    "/household/*",
+                    "/invite/*",
+                    "/chore/*"
+                ]
+            }
+        ]
+    }
+}

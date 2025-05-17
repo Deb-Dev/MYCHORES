@@ -45,9 +45,9 @@ struct AboutView: View {
                         
                         // Information section
                         VStack(spacing: 16) {
-                            infoRow(title: "Developer", value: "Chores App Team")
-                            infoRow(title: "Contact", value: "support@mychoresapp.com")
-                            infoRow(title: "Website", value: "www.mychoresapp.com")
+                            infoRow(title: "Developer", value: "Debasish Chowdhury (Sole Proprietor)")
+                            infoRow(title: "Contact", value: "support@mychore.app")
+                            infoRow(title: "Website", value: "https://mychore.app")
                             
                             Button {
                                 privacyTermsInitialTab = 0 // Privacy
@@ -72,7 +72,7 @@ struct AboutView: View {
                         .padding(.horizontal, 24)
                         
                         // Copyright
-                        Text("© 2025 MyChores App Team. All rights reserved.")
+                        Text("© 2025 Debasish Chowdhury. All rights reserved.")
                             .font(Theme.Typography.captionFontSystem)
                             .foregroundColor(Theme.Colors.textSecondary)
                             .padding(.top, 32)

@@ -11,3 +11,4 @@ The system design for the iOS app is described in the SYSTEM_DESIGN.md file.
 UML diagrams are in iOS_UML.md
 Use perplexity to check the latest documentation for any libraries or frameworks you are using.
 Now we are preparing this app for release.
+Creating the release related webpages.

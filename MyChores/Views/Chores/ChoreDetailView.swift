@@ -543,7 +543,7 @@ struct ChoreDetailView: View {
     
     /// Loads a user's name by their ID
     private func loadUserName(_ userId: String) {
-        #if DEBUG
+//        #if DEBUG
         // For preview, just use mock data
         DispatchQueue.main.async {
             // Sample user names for preview
@@ -555,28 +555,28 @@ struct ChoreDetailView: View {
             ]
             self.userNames[userId] = mockNames[userId] ?? "User \(userId.prefix(4))"
         }
-        #else
-        // In real app, fetch from UserService
-        Task {
-            do {
-                if let user = try await UserService.shared.getUser(withId: userId) {
-                    await MainActor.run {
-                        self.userNames[userId] = user.name
-                    }
-                }
-            } catch {
-                print("Error fetching user name for ID \(userId): \(error.localizedDescription)")
-                
-                // Set a fallback name if fetch fails
-                await MainActor.run {
-                    // Only set fallback if not already set
-                    if self.userNames[userId] == nil {
-                        self.userNames[userId] = "User \(userId.prefix(4))..."
-                    }
-                }
-            }
-        }
-        #endif
+//        #else
+//        // In real app, fetch from UserService
+//        Task {
+//            do {
+//                if let user = try await UserService.shared.getUser(withId: userId) {
+//                    await MainActor.run {
+//                        self.userNames[userId] = user.name
+//                    }
+//                }
+//            } catch {
+//                print("Error fetching user name for ID \(userId): \(error.localizedDescription)")
+//                
+//                // Set a fallback name if fetch fails
+//                await MainActor.run {
+//                    // Only set fallback if not already set
+//                    if self.userNames[userId] == nil {
+//                        self.userNames[userId] = "User \(userId.prefix(4))..."
+//                    }
+//                }
+//            }
+//        }
+//        #endif
     }
     
     private func getRecurrenceText() -> String {

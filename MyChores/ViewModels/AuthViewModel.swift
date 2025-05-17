@@ -295,17 +295,29 @@ class AuthViewModel: ObservableObject {
                 termsVersion: "1.0" // Current version
             )
             
+            // Log the terms acceptance values before updating
+            print("📝 Updating terms acceptance: termsAccepted=\(termsAccepted), privacyAccepted=\(privacyAccepted)")
+            
             try await authService.updateUserTermsAcceptance(uid: uid, termsAcceptance: termsAcceptance)
             
-            // Update the local user object
+            // Update the local user object immediately
             if var updatedUser = currentUser {
                 updatedUser.termsAcceptance = termsAcceptance
                 currentUser = updatedUser
+                print("📱 Updated local user terms acceptance: termsAccepted=\(updatedUser.termsAcceptance.termsAccepted), privacyAccepted=\(updatedUser.termsAcceptance.privacyAccepted)")
             }
             
-            print("Terms acceptance updated successfully")
+            // Force a refresh of the user data from Firestore to ensure we have the latest values
+            _ = await refreshCurrentUser()
+            
+            // Double check after refresh to ensure values were updated correctly
+            if let refreshedUser = currentUser {
+                print("♻️ After refresh: termsAccepted=\(refreshedUser.termsAcceptance.termsAccepted), privacyAccepted=\(refreshedUser.termsAcceptance.privacyAccepted)")
+            }
+            
+            print("✅ Terms acceptance updated successfully")
         } catch {
-            print("Failed to update terms acceptance: \(error.localizedDescription)")
+            print("❌ Failed to update terms acceptance: \(error.localizedDescription)")
             errorMessage = "Failed to update terms: \(error.localizedDescription)"
         }
     }

@@ -74,12 +74,48 @@ class UserService: UserServiceProtocol {
                 print("⚠️ User document does not exist: \(id)")
                 return nil
             }
+            
+            // Log the raw data to see what's actually in Firestore
+            if let data = documentSnapshot.data() {
+                print("🔍 Raw Firestore data for user \(id): \(data)")
+                
+                // Check specifically for termsAcceptance data
+                if let termsData = data["termsAcceptance"] as? [String: Any] {
+                    print("🔍 Raw termsAcceptance data: \(termsData)")
+                } else {
+                    print("⚠️ termsAcceptance data not found or not in expected format")
+                }
+            }
+            
             var user = try documentSnapshot.data(as: User.self)
+            
             // Ensure the user object has its ID, especially if it's not stored in the document body
             if user.id == nil {
                 user.id = documentSnapshot.documentID
             }
-            print("✅ Successfully fetched user: \(user.name) (ID: \(user.id ?? "unknown"))")
+            
+            // Manually fix termsAcceptance if it didn't decode correctly
+            if let termsData = documentSnapshot.data()?["termsAcceptance"] as? [String: Any] {
+                let termsAccepted = termsData["termsAccepted"] as? Bool ?? false
+                let privacyAccepted = termsData["privacyAccepted"] as? Bool ?? false
+                let acceptanceDate = termsData["acceptanceDate"] as? Timestamp
+                let termsVersion = termsData["termsVersion"] as? String ?? "1.0"
+                
+                var termsAcceptance = TermsAcceptance(
+                    termsAccepted: termsAccepted,
+                    privacyAccepted: privacyAccepted,
+                    termsVersion: termsVersion
+                )
+                
+                if let acceptanceTimestamp = acceptanceDate {
+                    termsAcceptance.acceptanceDate = acceptanceTimestamp.dateValue()
+                }
+                
+                user.termsAcceptance = termsAcceptance
+                print("🛠 Manually reconstructed termsAcceptance: \(user.termsAcceptance)")
+            }
+            
+            print("✅ Successfully fetched user: \(user.name) (ID: \(user.id ?? "unknown")), termsAccepted: \(user.termsAcceptance.termsAccepted)")
             return user
         } catch {
             print("❌ Error fetching user \(id): \(error.localizedDescription)")
