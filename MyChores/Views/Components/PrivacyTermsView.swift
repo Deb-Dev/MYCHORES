@@ -61,7 +61,7 @@ struct PrivacyTermsView: View {
             // Section 1: Who We Are
             sectionHeader("1. Who We Are")
             
-            Text("**MyChores** ('we', 'our', 'us') is a personal productivity application operated by **Debasish Chowdhury (sole proprietor)**, headquartered at **21 Ice Boat Terrace, Toronto, ON M5V 4A9, Canada**.")
+            Text("**MyChores** ('we', 'our', 'us') is a personal productivity application operated by **Decent apps, Toronto, ON M5V 4A9, Canada**.")
                 .font(Theme.Typography.bodyFontSystem)
             
             Text("Contact: **support@mychore.app**")
@@ -207,7 +207,7 @@ struct PrivacyTermsView: View {
             // Sections 6-14
             sectionHeader("6. Intellectual Property")
             
-            Text("All app code, design assets, and trademarks are owned by **Debasish Chowdhury (sole proprietor)** or its licensors. You retain ownership of content you submit but grant us a worldwide, royalty‑free licence to operate the Service.")
+            Text("All app code, design assets, and trademarks are owned by **Decent apps** or its licensors. You retain ownership of content you submit but grant us a worldwide, royalty‑free licence to operate the Service.")
                 .font(Theme.Typography.bodyFontSystem)
             
             sectionHeader("7. Third‑Party Services")
@@ -222,7 +222,7 @@ struct PrivacyTermsView: View {
             
             sectionHeader("9. Limitation of Liability")
             
-            Text("To the extent allowed by law, **Debasish Chowdhury (sole proprietor)** shall not be liable for indirect, incidental, consequential or punitive damages, or any loss of data, revenue, or profits.")
+            Text("To the extent allowed by law, **Decent apps** shall not be liable for indirect, incidental, consequential or punitive damages, or any loss of data, revenue, or profits.")
                 .font(Theme.Typography.bodyFontSystem)
             
             sectionHeader("10. Indemnification")
@@ -247,7 +247,7 @@ struct PrivacyTermsView: View {
             
             sectionHeader("14. Contact")
             
-            Text("**Debasish Chowdhury (sole proprietor)**\n**21 Ice Boat Terrace, Toronto, ON M5V 4A9, Canada**\nEmail: **support@mychore.app**")
+            Text("**Decent apps, Toronto, ON M5V 4A9, Canada**\nEmail: **support@mychore.app**")
                 .font(Theme.Typography.bodyFontSystem)
         }
     }
