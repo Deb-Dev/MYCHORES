@@ -39,11 +39,11 @@ class HouseholdViewModel: ObservableObject {
     private let userService: UserServiceProtocol
 
     /// Auth service instance
-    private let authService: AuthServiceProtocol
+    private let authService: any AuthServiceProtocol
     
     // MARK: - Initialization
     
-    init(selectedHouseholdId: String? = nil, householdService: HouseholdServiceProtocol = HouseholdService.shared, userService: UserServiceProtocol = UserService.shared, authService: AuthServiceProtocol = AuthService.shared) {
+    init(selectedHouseholdId: String? = nil, householdService: HouseholdServiceProtocol = HouseholdService.shared, userService: UserServiceProtocol = UserService.shared, authService: any AuthServiceProtocol = AuthService.shared) {
         self.householdService = householdService
         self.userService = userService
         self.authService = authService

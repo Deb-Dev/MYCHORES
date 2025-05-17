@@ -312,7 +312,7 @@ class AuthService: AuthServiceProtocol {
     // NEW: Method to update user's name
     @MainActor
     func updateUserName(newName: String) async throws {
-        guard let userId = getCurrentUserId(), var user = self.currentUser else {
+        guard let _ = getCurrentUserId(), var user = self.currentUser else {
             throw NSError(domain: "AuthService", code: 401, userInfo: [NSLocalizedDescriptionKey: "User not authenticated or current user data not available"])
         }
         
