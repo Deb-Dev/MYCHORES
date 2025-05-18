@@ -10,5 +10,5 @@ firestore rules are in the firestore.rules file.
 The system design for the iOS app is described in the SYSTEM_DESIGN.md file.
 UML diagrams are in iOS_UML.md
 Use perplexity to check the latest documentation for any libraries or frameworks you are using.
-Now we are preparing this app for release.
-Creating the release related webpages.
+We have release a version 1.0.0 of the app, so we are now in the process makeing the codebase cleaner and more maintainable.
+We are working on localization and internationalization of the app, so please make sure to use the correct localization keys and formats.

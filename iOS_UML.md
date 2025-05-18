@@ -50,6 +50,16 @@ package "Models" {
     +createdAt: Date
   }
 
+  class HouseholdRule {
+    +id: String?
+    +householdId: String
+    +ruleText: String
+    +createdByUserId: String
+    +createdAt: Date
+    +lastUpdatedAt: Date?
+    +displayOrder: Int?
+  }
+
   class Badge {
     +id: String?
     +badgeKey: String
@@ -113,6 +123,16 @@ package "Services" {
     +fetchHousehold(withId id: String)
     +fetchHouseholds(forUserId userId: String)
     +findHousehold(byInviteCode inviteCode: String)
+    +addMember(userId: String, toHouseholdId householdId: String) async throws // Added from previous context
+    +removeMember(userId: String, fromHouseholdId householdId: String) async throws // Added from previous context
+    +updateHouseholdName(householdId: String, newName: String) async throws // Added from previous context
+    +deleteHousehold(householdId: String, userId: String) async throws // Added from previous context
+
+    // Household Rules
+    +createHouseholdRule(householdId: String, ruleText: String, createdByUserId: String) async throws -> HouseholdRule
+    +fetchHouseholdRules(forHouseholdId householdId: String) async throws -> [HouseholdRule]
+    +updateHouseholdRule(_ rule: HouseholdRule) async throws -> HouseholdRule
+    +deleteHouseholdRule(ruleId: String, inHouseholdId householdId: String) async throws // Corrected signature
   }
   class HouseholdService implements HouseholdServiceProtocol {
      +shared: HouseholdService
@@ -159,6 +179,7 @@ package "ViewModels" {
     +selectedHousehold: Household?
     +householdMembers: [User]
     +currentUser: User?
+    +householdRules: [HouseholdRule] // Added
     -householdService: HouseholdServiceProtocol
     -userService: UserServiceProtocol
     +fetchHouseholds()
@@ -167,11 +188,18 @@ package "ViewModels" {
     +joinHousehold(...)
     +leaveHousehold(...)
     +inviteMember(...)
+
+    // Household Rules Methods
+    +loadHouseholdRules()
+    +addHouseholdRule(ruleText: String)
+    +updateHouseholdRule(rule: HouseholdRule, newText: String?, newDisplayOrder: Int?)
+    +deleteHouseholdRule(rule: HouseholdRule)
   }
   HouseholdViewModel --> HouseholdServiceProtocol : uses
   HouseholdViewModel --> UserServiceProtocol : uses
   HouseholdViewModel ..> Household : manages
   HouseholdViewModel ..> User : manages
+  HouseholdViewModel ..> HouseholdRule : manages // Added relationship
 
   class LeaderboardViewModel {
     +weeklyLeaderboard: [User]

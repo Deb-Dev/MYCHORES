@@ -23,6 +23,9 @@ class HouseholdViewModel: ObservableObject {
     
     /// Current logged-in user
     @Published var currentUser: User?
+
+    /// Rules for the selected household (NEW)
+    @Published var householdRules: [HouseholdRule] = []
     
     /// Loading state
     @Published var isLoading = false
@@ -47,18 +50,57 @@ class HouseholdViewModel: ObservableObject {
         self.householdService = householdService
         self.userService = userService
         self.authService = authService
-
-        if let householdId = selectedHouseholdId {
-            fetchHousehold(id: householdId)
-        } else {
-            // Potentially load households or set a default state
-            loadHouseholds() 
+        
+        // Set current user from authService
+        if let firebaseUser = authService.currentUser {
+            self.currentUser = firebaseUser // Assuming authService.currentUser is your app's User model
         }
-        // Observe current user changes from AuthService to update local currentUser
-        // This requires AuthService to be an ObservableObject and currentUser to be @Published
-        // For simplicity, assuming direct access or a separate mechanism to update currentUser
+        
+        if let initialId = selectedHouseholdId {
+            fetchHousehold(id: initialId)
+        } else {
+            // If no specific household is pre-selected, try to load the user's households
+            // and potentially select the first one or a previously selected one.
+            loadUserHouseholdsAndSelectDefault()
+        }
+    }
+    
+    private func loadUserHouseholdsAndSelectDefault() {
+        guard let userId = authService.getCurrentUserId() else {
+            errorMessage = "User not authenticated."
+            return
+        }
+        isLoading = true
         Task {
-            self.currentUser = try? await self.userService.fetchUser(withId: self.authService.getCurrentUserId() ?? "")
+            do {
+                let fetchedHouseholds = try await householdService.fetchHouseholds(forUserId: userId)
+                await MainActor.run {
+                    self.households = fetchedHouseholds
+                    if let firstHousehold = fetchedHouseholds.first {
+                        self.selectHousehold(firstHousehold) // Automatically select the first household
+                    } else {
+                        // Handle case where user has no households yet
+                        self.selectedHousehold = nil
+                        self.householdMembers = []
+                        self.householdRules = [] // Clear rules if no household
+                    }
+                    self.isLoading = false
+                }
+            } catch {
+                await MainActor.run {
+                    self.errorMessage = "Failed to load households: \(error.localizedDescription)"
+                    self.isLoading = false
+                }
+            }
+        }
+    }
+
+    /// Selects a household and fetches its details, members, and rules.
+    func selectHousehold(_ household: Household) {
+        self.selectedHousehold = household
+        if let householdId = household.id {
+            fetchHouseholdDetails(id: householdId)
+            loadHouseholdRules() // Load rules when a household is selected
         }
     }
     
@@ -102,33 +144,46 @@ class HouseholdViewModel: ObservableObject {
     ///   - id: Household ID
     ///   - completion: Optional completion handler with success boolean
     func fetchHousehold(id: String, completion: ((Bool) -> Void)? = nil) {
-        // Validate the household ID
-        guard !id.isEmpty else {
-            errorMessage = "Household ID cannot be empty."
-            isLoading = false
-            completion?(false)
-            return
-        }
-        
         isLoading = true
-        errorMessage = nil
-        
         Task {
             do {
-                let household = try await householdService.fetchHousehold(withId: id)
+                let fetchedHousehold = try await householdService.fetchHousehold(withId: id)
                 await MainActor.run {
-                    self.selectedHousehold = household
-                    if let currentSelectedHousehold = self.selectedHousehold {
-                        self.loadHouseholdMembers(household: currentSelectedHousehold)
+                    if let household = fetchedHousehold {
+                        self.selectHousehold(household) // Use selectHousehold to also load members and rules
+                        completion?(true)
+                    } else {
+                        self.errorMessage = "Household with ID \(id) not found."
+                        completion?(false)
                     }
-                    self.isLoading = false
-                    completion?(household != nil)
+                    isLoading = false
                 }
             } catch {
                 await MainActor.run {
                     self.errorMessage = "Failed to fetch household: \(error.localizedDescription)"
-                    self.isLoading = false
+                    isLoading = false
                     completion?(false)
+                }
+            }
+        }
+    }
+
+    /// Fetches details for the currently selected household, including its members.
+    private func fetchHouseholdDetails(id: String) {
+        // This function is now primarily for fetching members, as household object is already set.
+        // Rules are fetched by loadHouseholdRules()
+        isLoading = true
+        Task {
+            do {
+                let members = try await userService.fetchUsers(inHousehold: id)
+                await MainActor.run {
+                    self.householdMembers = members
+                    isLoading = false
+                }
+            } catch {
+                await MainActor.run {
+                    self.errorMessage = "Failed to fetch household members: \(error.localizedDescription)"
+                    isLoading = false
                 }
             }
         }
@@ -251,109 +306,142 @@ class HouseholdViewModel: ObservableObject {
     ///   - completion: Optional completion handler with success boolean
     func leaveHousehold(householdId: String, completion: ((Bool) -> Void)? = nil) {
         guard let userId = authService.getCurrentUserId() else {
-            errorMessage = "User not logged in."
-            isLoading = false
+            errorMessage = "User not authenticated."
             completion?(false)
             return
         }
-
         isLoading = true
-        errorMessage = nil
-        
         Task {
             do {
                 try await householdService.removeMember(userId: userId, fromHouseholdId: householdId)
-                try await userService.removeUserFromHousehold(userId: userId, householdId: householdId)
                 await MainActor.run {
-                    self.households.removeAll { $0.id == householdId }
-                    if self.selectedHousehold?.id == householdId {
-                        self.selectedHousehold = self.households.first
-                        if let currentSelectedHousehold = self.selectedHousehold {
-                           self.loadHouseholdMembers(household: currentSelectedHousehold)
-                        } else {
-                            self.householdMembers = []
-                        }
-                    }
-                    self.isLoading = false
+                    // Refresh user's households list and potentially select another one or show empty state
+                    self.loadUserHouseholdsAndSelectDefault()
+                    isLoading = false
                     completion?(true)
                 }
             } catch {
                 await MainActor.run {
                     self.errorMessage = "Failed to leave household: \(error.localizedDescription)"
-                    self.isLoading = false
+                    isLoading = false
                     completion?(false)
                 }
             }
         }
     }
     
-    /// Check if the current user is the owner of a household
-    /// - Parameter household: Household to check
-    /// - Returns: Boolean indicating ownership
-    func isCurrentUserOwner(of household: Household) -> Bool {
-        return household.ownerUserId == authService.getCurrentUserId()
-    }
-    
-    // MARK: - Member Management
-    
-    /// Load members of a household
-    /// - Parameter household: Household
-    private func loadHouseholdMembers(household: Household) {
-        guard let householdId = household.id else {
-            self.householdMembers = []
-            return
-        }
-        isLoading = true
-        Task {
-            do {
-                let members = try await userService.fetchUsers(inHousehold: householdId)
-                await MainActor.run {
-                    self.householdMembers = members
-                    self.isLoading = false
-                }
-            } catch {
-                await MainActor.run {
-                    self.errorMessage = "Failed to load household members: \(error.localizedDescription)"
-                    self.isLoading = false
-                }
-            }
-        }
-    }
-    
-    /// Remove a user from the current household
-    /// - Parameters:
-    ///   - userId: User ID to remove
-    ///   - completion: Optional completion handler with success boolean
-    func removeMember(userId: String, completion: ((Bool) -> Void)? = nil) {
+    // MARK: - Household Rules Methods (NEW)
+
+    /// Load rules for the currently selected household
+    func loadHouseholdRules() {
         guard let householdId = selectedHousehold?.id else {
-            errorMessage = "No household selected."
-            completion?(false)
+            self.householdRules = [] // Clear rules if no household is selected
+            // errorMessage = "No household selected to load rules from."
             return
         }
-        // Ensure current user is owner before removing another member
-        guard selectedHousehold?.ownerUserId == authService.getCurrentUserId() else {
-            errorMessage = "Only the household owner can remove members."
-            completion?(false)
-            return
-        }
-
         isLoading = true
-        errorMessage = nil
-
         Task {
             do {
-                try await householdService.removeMember(userId: userId, fromHouseholdId: householdId)
-                try await userService.removeUserFromHousehold(userId: userId, householdId: householdId)
+                let rules = try await householdService.fetchHouseholdRules(forHouseholdId: householdId)
                 await MainActor.run {
-                    self.householdMembers.removeAll { $0.id == userId }
-                    self.isLoading = false
-                    completion?(true)
+                    self.householdRules = rules.sorted(by: { ($0.displayOrder ?? Int.max) < ($1.displayOrder ?? Int.max) }) // Sort by displayOrder, then createdAt if displayOrder is nil or same
+                    // As a secondary sort, if displayOrder is not used or items have same displayOrder:
+                    // self.householdRules = rules.sorted(by: { $0.createdAt < $1.createdAt })
+                    isLoading = false
                 }
             } catch {
                 await MainActor.run {
-                    self.errorMessage = "Failed to remove member: \(error.localizedDescription)"
-                    self.isLoading = false
-                    completion?(false)
+                    self.errorMessage = "Failed to load household rules: \(error.localizedDescription)"
+                    isLoading = false
+                }
+            }
+        }
+    }
+
+    /// Add a new rule to the selected household
+    func addHouseholdRule(ruleText: String) {
+        guard let householdId = selectedHousehold?.id, let userId = authService.getCurrentUserId() else {
+            errorMessage = "Cannot add rule: No household selected or user not authenticated."
+            return
+        }
+        guard !ruleText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            errorMessage = "Rule text cannot be empty."
+            return
+        }
+        
+        isLoading = true
+        Task {
+            do {
+                let newRule = try await householdService.createHouseholdRule(householdId: householdId, ruleText: ruleText, createdByUserId: userId)
+                await MainActor.run {
+                    self.householdRules.append(newRule)
+                    // Optionally re-sort or just append
+                    self.householdRules.sort(by: { ($0.displayOrder ?? Int.max) < ($1.displayOrder ?? Int.max) })
+                    isLoading = false
+                }
+            } catch {
+                await MainActor.run {
+                    self.errorMessage = "Failed to add household rule: \(error.localizedDescription)"
+                    isLoading = false
+                }
+            }
+        }
+    }
+
+    /// Update an existing household rule
+    func updateHouseholdRule(rule: HouseholdRule, newText: String? = nil, newDisplayOrder: Int? = nil) {
+        guard let householdId = selectedHousehold?.id else {
+            errorMessage = "Cannot update rule: No household selected."
+            return
+        }
+        
+        var ruleToUpdate = rule
+        if let text = newText, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            ruleToUpdate.ruleText = text
+        }
+        if let order = newDisplayOrder {
+            ruleToUpdate.displayOrder = order
+        }
+
+        isLoading = true
+        Task {
+            do {
+                let updatedRule = try await householdService.updateHouseholdRule(ruleToUpdate)
+                await MainActor.run {
+                    if let index = self.householdRules.firstIndex(where: { $0.id == updatedRule.id }) {
+                        self.householdRules[index] = updatedRule
+                        self.householdRules.sort(by: { ($0.displayOrder ?? Int.max) < ($1.displayOrder ?? Int.max) })
+                    }
+                    isLoading = false
+                }
+            } catch {
+                await MainActor.run {
+                    self.errorMessage = "Failed to update household rule: \(error.localizedDescription)"
+                    isLoading = false
+                }
+            }
+        }
+    }
+
+    /// Delete a household rule
+    func deleteHouseholdRule(rule: HouseholdRule) {
+        guard let ruleId = rule.id, let householdId = selectedHousehold?.id else {
+            errorMessage = "Cannot delete rule: Rule ID or Household ID missing."
+            return
+        }
+        isLoading = true
+        Task {
+            do {
+                // Using the corrected service method that requires householdId
+                try await householdService.deleteHouseholdRule(ruleId: ruleId)
+                await MainActor.run {
+                    self.householdRules.removeAll { $0.id == ruleId }
+                    isLoading = false
+                }
+            } catch {
+                await MainActor.run {
+                    self.errorMessage = "Failed to delete household rule: \(error.localizedDescription)"
+                    isLoading = false
                 }
             }
         }
