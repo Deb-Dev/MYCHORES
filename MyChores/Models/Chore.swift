@@ -137,7 +137,7 @@ struct Chore: Identifiable, Codable, Equatable {
             case .monthly:
                 if let dayOfMonth = recurrenceDayOfMonth {
                     // Get the base next month date
-                    var nextMonth = calendar.date(byAdding: .month, value: interval, to: occurrenceDate)!
+                    let nextMonth = calendar.date(byAdding: .month, value: interval, to: occurrenceDate)!
                     
                     // Set to the specified day of month
                     var components = calendar.dateComponents([.year, .month], from: nextMonth)

@@ -367,7 +367,7 @@ class ChoreService: ChoreServiceProtocol {
     /// - Parameter userId: User ID to check
     private func checkAndAwardBadges(forUserId userId: String) async throws {
         // Fetch the user to check badges based on stored task count
-        guard var user = try await userService.fetchUser(withId: userId) else {
+        guard let user = try await userService.fetchUser(withId: userId) else {
             throw NSError(domain: "ChoreService", code: 404, userInfo: [NSLocalizedDescriptionKey: "User not found for badges"])
         }
         

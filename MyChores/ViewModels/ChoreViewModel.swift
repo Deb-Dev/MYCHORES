@@ -314,7 +314,7 @@ class ChoreViewModel: ObservableObject {
                 let result = try await choreService.completeChore(choreId: choreId, completedByUserId: userId, createNextRecurrence: true) // Assuming we want to create next recurrence
                 
                 let completedChore = result.completedChore
-                let pointsEarned = result.pointsEarned
+                _ = result.pointsEarned
                 let nextRecurringChore = result.nextRecurringChore
                 let earnedBadges = result.earnedBadges
                 

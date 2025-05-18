@@ -3,15 +3,20 @@
 // MyChores
 //
 // Created on 2025-05-17.
+// Moved to Components/Animations on 2025-05-17.
 //
 
 import SwiftUI
 
 /// A view that displays subtle floating particles in the background
-struct ParticleBackgroundView: View {
-    let particleCount = 15
+public struct ParticleBackgroundView: View {
+    let particleCount: Int
     
-    var body: some View {
+    public init(particleCount: Int = 15) {
+        self.particleCount = particleCount
+    }
+    
+    public var body: some View {
         GeometryReader { geometry in
             ZStack {
                 ForEach(0..<particleCount, id: \.self) { index in

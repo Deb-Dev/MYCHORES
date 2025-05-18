@@ -4,15 +4,11 @@
 // Created on 2025-05-02.
 // Enhanced on 2025-05-15.
 // Refactored on 2025-05-17.
+// Updated with reusable components on 2025-05-17.
 //
 
 import SwiftUI
 import Combine
-
-// Import local components
-// These imports are not actually necessary in Swift
-// as all files in the same module are automatically accessible
-// This is just for clarity
 
 /// View for displaying user's achievements and badges
 struct AchievementsView: View {
@@ -37,8 +33,14 @@ struct AchievementsView: View {
     var body: some View {
         ZStack {
             // Background with subtle pattern
-            backgroundView
-                .ignoresSafeArea()
+            ZStack {
+                Theme.Colors.background
+                
+                // Particle effects from our Components/Animations
+                ParticleBackgroundView()
+                    .opacity(0.2)
+            }
+            .ignoresSafeArea()
 
             if viewModel.isLoading {
                 loadingView
@@ -73,7 +75,7 @@ struct AchievementsView: View {
                 }
                 .accessibilityIdentifier("Achievements_ScrollView")
                 
-                // Celebration animation overlay
+                // Celebration animation overlay using our Components/Animations
                 if showCelebration {
                     ConfettiCelebrationView(count: 50)
                         .allowsHitTesting(false)
@@ -99,6 +101,7 @@ struct AchievementsView: View {
             resetAnimationStates()
         }
         .sheet(item: $showingBadgeDetail) { badge in
+            // Using our reusable Component/Badges/BadgeDetailView
             BadgeDetailView(badge: badge)
                 .accessibilityIdentifier("BadgeDetailView")
         }
@@ -178,31 +181,7 @@ struct AchievementsView: View {
         showCelebration = false
     }
     
-    // MARK: - Background View
-    private var backgroundView: some View {
-        ZStack {
-            Theme.Colors.background
-            
-            // Particle effects
-            ParticleBackgroundView()
-                .opacity(0.2)
-            
-            // Subtle decorative pattern
-            VStack(spacing: 60) {
-                ForEach(0..<6) { i in
-                    HStack(spacing: 60) {
-                        ForEach(0..<4) { j in
-                            Image(systemName: "rosette")
-                                .font(.system(size: 20))
-                                .foregroundColor(Theme.Colors.primary.opacity(0.03))
-                                .rotationEffect(.degrees(Double((i + j) * 15)))
-                        }
-                    }
-                }
-            }
-            .offset(y: -100)
-        }
-    }
+    // Background view is now directly in the body using ParticleBackgroundView from Components/Animations
     
     // MARK: - Loading View
     private var loadingView: some View {
@@ -496,11 +475,20 @@ struct AchievementsView: View {
                         let badge = allDisplayBadges[index]
                         let isEarned = viewModel.earnedBadges.contains(where: { $0.id == badge.id })
                         
-                        EnhancedBadgeCardView(
+                        // Using our reusable BadgeCardView component
+                        BadgeCardView(
                             badge: badge,
                             isEarned: isEarned,
-                            viewModel: viewModel, // Pass the viewModel
-                            delay: Double(index) * 0.05 + 0.3
+                            progress: 0.0, // We'll fetch this in onAppear
+                            delay: Double(index) * 0.05 + 0.3,
+                            isRecentlyEarned: badge.id == UserDefaults.standard.string(forKey: "recentlyEarnedBadgeId"),
+                            onAppear: {
+                                // Fetch badge progress when the card appears
+                                Task {
+                                    let progress = await viewModel.getBadgeProgress(for: badge)
+                                    // Progress will be automatically updated in the BadgeCardView
+                                }
+                            }
                         )
                         .onTapGesture {
                             showingBadgeDetail = badge
@@ -626,11 +614,7 @@ struct AchievementsView: View {
     }
 }
 
-// Particle Views have been moved to ParticleViews.swift
-
-// Badge Card View has been moved to BadgeCardView.swift
-
-// Badge Detail View has been moved to BadgeDetailView.swift
+// Using components from Components/Animations and Components/Badges folders instead
 
 #Preview {
     NavigationStack {
@@ -638,10 +622,11 @@ struct AchievementsView: View {
     }
 }
 
-// Component files reference:
-// ParticleViews.swift - Contains ParticleBackgroundView and ParticleView
-// BadgeCardView.swift - Contains EnhancedBadgeCardView 
-// BadgeDetailView.swift - Contains BadgeDetailView
-// ConfettiView.swift - Contains ConfettiCelebrationView and ConfettiPiece
+// Component Structure Reference:
+// Views/Components/Animations/ParticleViews.swift - Contains ParticleBackgroundView and ParticleView
+// Views/Components/Animations/ConfettiView.swift - Contains ConfettiCelebrationView and ConfettiPiece
+// Views/Components/Badges/BadgeCardView.swift - Contains BadgeCardView 
+// Views/Components/Badges/BadgeDetailView.swift - Contains BadgeDetailView
+// Utils/AnimationUtilities.swift - Contains reusable animation helpers
 
-// Confetti Animation has been moved to ConfettiView.swift
+// Using ConfettiCelebrationView from Components/Animations folder

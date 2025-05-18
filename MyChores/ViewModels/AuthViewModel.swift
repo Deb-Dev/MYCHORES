@@ -30,7 +30,7 @@ class AuthViewModel: ObservableObject {
     // MARK: - Private Properties
     
     /// Auth service instance
-    private let authService: AuthServiceProtocol
+    private let authService: any AuthServiceProtocol
     
     /// Cancellables set for managing subscriptions
     private var cancellables = Set<AnyCancellable>()
@@ -47,7 +47,7 @@ class AuthViewModel: ObservableObject {
     
     // MARK: - Initialization
     
-    init(authService: AuthServiceProtocol = AuthService.shared) {
+    init(authService: any AuthServiceProtocol = AuthService.shared) {
         self.authService = authService
         
         // Subscribe to changes from the authService

@@ -80,7 +80,7 @@ class AchievementsViewModel: ObservableObject {
                     print("✅ User found: \(user.name)")
                     
                     // Determine completed tasks count
-                    var completedCount = user.totalPoints  // Use totalPoints as a proxy for completed chores
+                    let completedCount = user.totalPoints  // Use totalPoints as a proxy for completed chores
                     
                     // Calculate earned badges based on user's earned badges array
                     let earned = Badge.predefinedBadges.filter { badge in

@@ -3,19 +3,26 @@
 // MyChores
 //
 // Created on 2025-05-17.
+// Moved to Components/Badges on 2025-05-17.
 //
 
 import SwiftUI
 
 /// Enhanced detailed view for a single badge
-struct BadgeDetailView: View {
+public struct BadgeDetailView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var animateDetail = false
     @State private var showShine = false
 
     let badge: Badge
+    var onDismiss: (() -> Void)? = nil
 
-    var body: some View {
+    init(badge: Badge, onDismiss: (() -> Void)? = nil) {
+        self.badge = badge
+        self.onDismiss = onDismiss
+    }
+
+    public var body: some View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 32) {
@@ -38,6 +45,8 @@ struct BadgeDetailView: View {
                                     .fill(
                                         LinearGradient(
                                             gradient: Gradient(colors: [
+                                                Color.white.opacity(0),
+                                                Color.white.opacity(0.5),
                                                 Color.white.opacity(0)
                                             ]),
                                             startPoint: .leading,
@@ -197,6 +206,7 @@ struct BadgeDetailView: View {
                     Button("Done") {
                         withAnimation {
                             dismiss()
+                            onDismiss?()
                         }
                     }
                 }

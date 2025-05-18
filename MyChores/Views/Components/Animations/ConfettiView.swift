@@ -3,16 +3,21 @@
 // MyChores
 //
 // Created on 2025-05-17.
+// Moved to Components/Animations on 2025-05-17.
 //
 
 import SwiftUI
 
 /// A view that displays a confetti celebration animation
-struct ConfettiCelebrationView: View {
+public struct ConfettiCelebrationView: View {
     @State private var isAnimating = false
     let count: Int
     
-    var body: some View {
+    public init(count: Int) {
+        self.count = count
+    }
+    
+    public var body: some View {
         ZStack {
             ForEach(0..<count, id: \.self) { index in
                 ConfettiPiece(color: confettiColor(for: index), rotation: Double.random(in: 0...360))

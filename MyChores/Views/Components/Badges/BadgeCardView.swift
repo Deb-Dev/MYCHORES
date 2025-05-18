@@ -3,27 +3,44 @@
 // MyChores
 //
 // Created on 2025-05-17.
+// Moved to Components/Badges on 2025-05-17.
 //
 
 import SwiftUI
 
 /// Enhanced card view for displaying a badge
-struct EnhancedBadgeCardView: View {
+public struct BadgeCardView: View {
     let badge: Badge
     let isEarned: Bool
-    let viewModel: AchievementsViewModel
+    let progress: Double
     let delay: Double
+    var onAppear: (() -> Void)? = nil
+    var isRecentlyEarned: Bool = false
 
-    @State private var progress: Double = 0.0
     @State private var appeared = false
     @State private var rotationX: CGFloat = 0
     @State private var rotationY: CGFloat = 0
-    @State private var isRecentlyEarned = false
     
     // For 3D effect
     @Environment(\.colorScheme) private var colorScheme
     
-    var body: some View {
+    init(
+        badge: Badge, 
+        isEarned: Bool, 
+        progress: Double = 0.0, 
+        delay: Double = 0.0, 
+        isRecentlyEarned: Bool = false, 
+        onAppear: (() -> Void)? = nil
+    ) {
+        self.badge = badge
+        self.isEarned = isEarned
+        self.progress = progress
+        self.delay = delay
+        self.isRecentlyEarned = isRecentlyEarned
+        self.onAppear = onAppear
+    }
+    
+    public var body: some View {
         VStack(spacing: 16) {
             // Badge icon with animated container
             ZStack {
@@ -174,25 +191,14 @@ struct EnhancedBadgeCardView: View {
             withAnimation(.easeOut(duration: 0.5).delay(delay)) {
                 appeared = true
             }
-            // Fetch progress on appear
-            Task {
-                self.progress = await viewModel.getBadgeProgress(for: badge)
-            }
             
-            // Check if this badge was recently earned
-            if UserDefaults.standard.string(forKey: "recentlyEarnedBadgeId") == badge.id {
-                isRecentlyEarned = true
-                // Clear the flag after a delay
-                DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
-                    UserDefaults.standard.removeObject(forKey: "recentlyEarnedBadgeId")
-                    isRecentlyEarned = false
-                }
-            }
+            // Call the onAppear handler if provided
+            onAppear?()
         }
     }
 }
 
 //#Preview {
 //    let previewBadge = Badge(id: "preview", name: "Task Master", description: "Complete 10 tasks", iconName: "star.fill", requiredTaskCount: 10)
-//    EnhancedBadgeCardView(badge: previewBadge, isEarned: true, viewModel: AchievementsViewModel(userId: "preview"), delay: 0.0)
+//    BadgeCardView(badge: previewBadge, isEarned: true, progress: 0.0, delay: 0.0)
 //}
